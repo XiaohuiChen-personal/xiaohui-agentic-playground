@@ -32,7 +32,7 @@ brew install uv
 ### 2. Clone the Repository
 
 ```bash
-git clone https://github.com/jack25409440/xiaohui-agentic-playground.git
+git clone https://github.com/XiaohuiChen-personal/xiaohui-agentic-playground.git
 cd xiaohui-agentic-playground
 ```
 
