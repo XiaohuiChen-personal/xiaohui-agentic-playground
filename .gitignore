@@ -1,0 +1,19 @@
+# Environment variables
+.env
+.env.local
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# UV
+.python-version
+
+# OS
+.DS_Store
+

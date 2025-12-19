@@ -1,0 +1,7 @@
+[project]
+name = "xiaohui-agentic-playground"
+version = "0.1.0"
+description = "A playground for agentic experiments"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
