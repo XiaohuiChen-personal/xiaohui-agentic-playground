@@ -99,8 +99,9 @@ xiaohui-agentic-playground/
 │   ├── agentic_systems.ipynb    # Agentic patterns for classification
 │   └── README.md                # Detailed documentation
 ├── 2-openai-sdk/
-│   ├── email_battle.ipynb       # Multi-agent adversarial simulation
-│   └── README.md                # Detailed documentation
+│   └── email_battle/
+│       ├── email_battle.ipynb   # Multi-agent adversarial simulation
+│       └── README.md            # Detailed documentation
 ├── 3-crew-ai/
 │   └── email_battle/            # CrewAI implementation
 │       └── README.md            # Detailed documentation
@@ -155,7 +156,7 @@ Explores and compares **5 agentic workflow design patterns** using the AG News d
 
 ### 2. Email Battle (OpenAI Agents SDK)
 
-📁 [`2-openai-sdk/`](2-openai-sdk/)
+📁 [`2-openai-sdk/email_battle/`](2-openai-sdk/email_battle/)
 
 A **multi-agent adversarial simulation** using the OpenAI Agents SDK. Two AI agents with opposing objectives engage in a realistic email exchange:
 
@@ -166,7 +167,7 @@ A **multi-agent adversarial simulation** using the OpenAI Agents SDK. Two AI age
 
 Features tournament-style battles across 8 model combinations (GPT-5.2, Claude Opus 4.5, etc.) with full email thread context preservation.
 
-➡️ **[See full documentation](2-openai-sdk/README.md)**
+➡️ **[See full documentation](2-openai-sdk/email_battle/README.md)**
 
 ---
 
