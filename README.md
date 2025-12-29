@@ -99,8 +99,11 @@ xiaohui-agentic-playground/
 │   ├── agentic_systems.ipynb    # Agentic patterns for classification
 │   └── README.md                # Detailed documentation
 ├── 2-openai-sdk/
-│   └── email_battle/
-│       ├── email_battle.ipynb   # Multi-agent adversarial simulation
+│   ├── email_battle/
+│   │   ├── email_battle.ipynb   # Multi-agent adversarial simulation
+│   │   └── README.md            # Detailed documentation
+│   └── smart_shopping_assistant/
+│       ├── smart_shopping_assistant.ipynb  # Multi-agent shopping assistant
 │       └── README.md            # Detailed documentation
 ├── 3-crew-ai/
 │   └── email_battle/            # CrewAI implementation
@@ -171,7 +174,29 @@ Features tournament-style battles across 8 model combinations (GPT-5.2, Claude O
 
 ---
 
-### 3. Email Battle (CrewAI)
+### 3. Smart Shopping Assistant (OpenAI Agents SDK)
+
+📁 [`2-openai-sdk/smart_shopping_assistant/`](2-openai-sdk/smart_shopping_assistant/)
+
+A **multi-agent shopping assistant** demonstrating **tools**, **handoffs**, and **orchestration** patterns. Specialized agents collaborate to help users find, compare, and research products.
+
+| Agent | Model | Role |
+|-------|-------|------|
+| **Concierge** | `gpt-5.2-pro` | Orchestrator - routes requests and synthesizes responses |
+| **Product Specialist** | `gpt-5.2` | Searches products, compares prices, gets specifications |
+| **Review Analyst** | `gpt-5.2` | Fetches and analyzes customer reviews |
+
+**Key Features:**
+- Bidirectional handoffs (specialists hand back to orchestrator)
+- Native OpenAI SDK handoffs
+- Real-Time Product Search API integration
+- Full tracing support
+
+➡️ **[See full documentation](2-openai-sdk/smart_shopping_assistant/README.md)**
+
+---
+
+### 4. Email Battle (CrewAI)
 
 📁 [`3-crew-ai/email_battle/`](3-crew-ai/email_battle/)
 
