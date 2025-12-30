@@ -1,0 +1,188 @@
+============================================================
+SMART SHOPPING ASSISTANT RESULTS
+============================================================
+
+Timestamp: 2025-12-29 22:51:47
+Intent: product_search
+Concierge Reasoning: The user is asking to search for the top 5 over-ear wireless headphones under $100 with noise cancellation, which is primarily a product-finding and filtering task (price cap + features). Reviews can be analyzed after the shortlist is identified.
+Query: Search for the top 5 over-ear wireless headphones under $100 with noise cancellation
+
+------------------------------------------------------------
+RESPONSE:
+------------------------------------------------------------
+
+Here are the best **over-ear wireless headphones under $100 with noise cancellation** based on the specialist’s top-rated results. (Note: the search returned **3 real products**—2 of the “top 5” slots were empty placeholders, so I’m only listing the valid finds.)
+
+---
+
+## Top picks under $100 (Over-ear • Wireless • Noise cancellation)
+
+### 1) Anker Soundcore **Q20i** Hybrid Active Noise Cancelling — **Best Value**
+- **$69.99 — Best Buy**
+- **4.8/5 ⭐ (6,464 reviews)**
+- **Noise cancellation:** **Yes (Hybrid ANC, 4 mics; up to ~90% noise reduction)**
+- **Battery:** **40 hrs (ANC on)** / 60 hrs (ANC off)
+- **Standouts:** transparency mode, **dual-device connection**, Soundcore app EQ presets, fast charge (5 min = 4 hrs), foldable, memory foam pads
+- **Why it’s great:** strongest “proven” option here—excellent rating + huge review count at a solid price.
+
+---
+
+### 2) Anker Soundcore **Space One** Wireless Noise Cancelling — “Best ANC” option under $100
+- **$99.99 — Best Buy**
+- **4.7/5 ⭐ (3,383 reviews)**
+- **Noise cancellation:** **Yes (Adaptive ANC; up to ~98% noise reduction claim)**
+- **Battery:** **40 hrs (ANC on)** / 55 hrs (ANC off)
+- **Standouts:** **LDAC Hi-Res wireless**, Bluetooth 5.3 multipoint, adjustable transparency (5 levels), comfort-focused rotating ear cups, app customization (Hear ID), fast charge (5 min = 4 hrs)
+- **Why choose it over Q20i:** if you want the **strongest noise cancelling** and **better wireless audio (LDAC)** and you’re right at the $100 ceiling.
+
+---
+
+### 3) Mollan **Wireless Gaming Headphones** (Over-ear wireless) — Not true ANC (gaming-focused)
+- **$35.99 — Walmart (WNX Group seller)**
+- **5.0/5 ⭐ (167 reviews)**
+- **Noise cancellation:** **No (NOT Active Noise Cancellation)**  
+  - The listing’s “noise-canceling” refers to the **detachable noise-canceling microphone**, not ANC for blocking ambient sound while listening.
+- **Battery:** up to 40 hrs
+- **Standouts:** 2.4GHz wireless + Bluetooth 5.3 + 3.5mm wired, 7.1 surround, very low latency (25ms), RGB lighting
+- **Who it’s for:** primarily gamers who want a low-cost wireless headset—**not** the best pick if you need ANC for commuting/office.
+
+---
+
+## Quick recommendation (based on what most people mean by “noise cancellation” = ANC)
+- **Buy:** **Anker Soundcore Q20i ($69.99, Best Buy)** — best overall value, great reviews, true ANC, strong battery.
+- **Upgrade pick:** **Anker Soundcore Space One ($99.99, Best Buy)** — if you want **stronger ANC + LDAC** and can spend up to the limit.
+- **Skip for ANC needs:** **Mollan Gaming Headset** — good for gaming features, but **doesn’t provide active noise cancelling**.
+
+---
+
+## Next step
+Would you like me to **compare Q20i vs Space One** for your specific use (commute, office calls, flying, gaming), or pull out **review themes/complaints** (comfort, hiss, mic quality, ANC strength) for the one you’re leaning toward?
+
+------------------------------------------------------------
+RAW PRODUCT RESULTS:
+------------------------------------------------------------
+
+---
+
+## Search Summary for Concierge
+
+**Search Parameters Used:**
+- Query: "over-ear wireless headphones noise cancellation"
+- Price Range: Under $100
+- Sort: TOP_RATED
+- Limit: 5 results requested
+- Products Found: 3 valid products (2 results were empty placeholders)
+
+---
+
+## Top Products Found
+
+### 1. Mollan Wireless Gaming Headphones
+- **Price:** $35.99 at Walmart (WNX Group seller)
+- **Rating:** 5.0/5 ⭐ (167 reviews)
+- **Condition:** NEW
+- **Shipping:** Free delivery by Thursday
+- **Typical Price Range:** $37
+
+**Key Features:**
+- Over-Ear design with 50mm drivers
+- Noise-Canceling Microphone (detachable, 360° rotation)
+- 40 hours battery life, USB-C fast charging (2 hours full charge)
+- 7.1 Surround Sound
+- Multiple connectivity: Bluetooth 5.3, 2.4GHz wireless, and 3.5mm wired
+- RGB lighting
+- Protein leather ear pads
+- Compatible with: PC, PS4, PS5, Switch, Cell Phone, Xbox (via 3.5mm)
+- Ultra-Low 25ms latency for gaming
+
+**Note:** This is primarily a *gaming* headset with a noise-canceling microphone, not active noise cancellation for listening. The "noise cancellation" refers to the microphone feature.
+
+---
+
+### 2. Anker Soundcore Q20i Hybrid Active Noise Cancelling Headphones ⭐ BEST VALUE
+- **Price:** $69.99 at Best Buy
+- **Rating:** 4.8/5 ⭐ (6,464 reviews)
+- **Condition:** NEW
+- **Shipping:** Free delivery by Wednesday
+- **Returns:** Until January 15
+- **Typical Price Range:** $38 - $45 (current price is higher than typical)
+- **Available Colors:** Black, Blue, White
+
+**Key Features:**
+- **True Hybrid Active Noise Cancelling** with 4 mics (reduces up to 90% of external noise)
+- 40mm dynamic drivers with BassUp technology
+- Hi-Res audio via AUX cable
+- **40 hours battery with ANC on**, 60 hours with ANC off
+- Fast charging: 5 minutes = 4 extra hours of playtime
+- Dual-Device Connection (switch between devices seamlessly)
+- Transparency mode to hear surroundings
+- Soundcore App support with 22 EQ presets
+- Foldable design, memory foam ear pads
+- Bluetooth 5.0
+- IPX4 water protection
+- TCO Certified for sustainability
+
+**Review Highlights:**
+- 1,116 users praised "good sound quality"
+- 579 users noted it's "comfortable"
+- 429 users appreciated "long battery life"
+- 235 users liked the "good bass"
+
+---
+
+### 3. Anker Soundcore Space One Wireless Noise Cancelling Headphones
+- **Price:** $99.99 at Best Buy
+- **Rating:** 4.7/5 ⭐ (3,383 reviews)
+- **Condition:** NEW
+- **Shipping:** Free next-day delivery
+- **Returns:** Until January 15
+- **Typical Price Range:** $80 - $505 (wide range due to different variants/conditions)
+- **Available Colors:** Black, Blue, Cream, Sky Blue
+
+**Key Features:**
+- **Adaptive Active Noise Cancellation** (reduces up to 98% of noise, 2X more voice reduction than previous version)
+- 40mm drivers with LDAC support for Hi-Res Wireless audio (3X more detail than standard Bluetooth)
+- **40 hours with ANC on**, 55 hours with ANC off
+- Fast charging: 5 minutes = 4 hours of playtime
+- 5 levels of adjustable transparency mode
+- Multipoint Bluetooth 5.3 connection
+- 8° rotating ear cups for comfort
+- Soft integrated headband
+- Foldable design
+- AI-powered noise-canceling microphone
+- Soundcore App with customizable EQ (Hear ID)
+- TCO Certified
+
+**Review Highlights:**
+- 463 users praised "good sound quality"
+- 306 users noted it's "comfortable"
+- 128 users appreciated "long battery life"
+
+---
+
+## Best Value Recommendation
+
+### 🏆 **Anker Soundcore Q20i** at $69.99
+
+**Why this is the best value:**
+
+1. **Best Rating-to-Price Ratio:** At 4.8/5 stars with 6,464 reviews (the most reviewed product), it has proven reliability and customer satisfaction at only $69.99.
+
+2. **True Active Noise Cancellation:** Unlike the Mollan gaming headset which only has a noise-canceling microphone, the Q20i offers genuine Hybrid ANC that reduces 90% of ambient noise.
+
+3. **Exceptional Battery Life:** 40 hours with ANC on is excellent for the price point.
+
+4. **Fast Charging:** 5 minutes of charging provides 4 hours of playtime - great for those who forget to charge.
+
+5. **Feature-Rich:** Includes transparency mode, app customization, dual-device connection, and Hi-Res audio support via AUX.
+
+6. **Massive Review Base:** With over 6,400 reviews, the 4.8 rating is highly credible.
+
+**Alternative Consideration:**
+- **Soundcore Space One ($99.99):** If the user wants the absolute best noise cancellation (98% vs 90%) and LDAC support for higher quality wireless audio, the Space One is worth the $30 premium. It also has a newer Bluetooth 5.3 chip and adaptive ANC technology.
+
+- **Mollan Gaming Headset ($35.99):** Only recommended if the user specifically needs a gaming headset with surround sound and low latency. It does NOT have active noise cancellation for listening - only a noise-canceling microphone for calls.
+
+---
+
+*Note for Concierge: The user asked for "noise cancellation" which typically means Active Noise Cancellation for blocking external sounds. The Anker options (Q20i and Space One) provide this feature. The Mollan headset has a noise-canceling microphone but not ANC for listening.*

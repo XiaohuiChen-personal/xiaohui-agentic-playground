@@ -77,6 +77,7 @@ Your `.env` file should contain:
 ```
 OPENAI_API_KEY=your_openai_api_key_here
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
+RAPID_API_KEY=your_rapid_api_key_here
 ```
 
 ### 7. Register the Kernel for Jupyter
@@ -106,7 +107,9 @@ xiaohui-agentic-playground/
 │       ├── smart_shopping_assistant.ipynb  # Multi-agent shopping assistant
 │       └── README.md            # Detailed documentation
 ├── 3-crew-ai/
-│   └── email_battle/            # CrewAI implementation
+│   ├── email_battle/            # CrewAI implementation
+│   │   └── README.md            # Detailed documentation
+│   └── smart_shopping_assistant/ # CrewAI Flow implementation
 │       └── README.md            # Detailed documentation
 ├── .env.example                 # Template for environment variables
 ├── .gitignore
@@ -203,6 +206,29 @@ A **multi-agent shopping assistant** demonstrating **tools**, **handoffs**, and 
 The same Email Battle scenario implemented using the **CrewAI framework**, demonstrating an alternative approach to multi-agent orchestration with YAML-based agent/task configuration.
 
 ➡️ **[See full documentation](3-crew-ai/email_battle/README.md)**
+
+---
+
+### 5. Smart Shopping Assistant (CrewAI Flow)
+
+📁 [`3-crew-ai/smart_shopping_assistant/`](3-crew-ai/smart_shopping_assistant/)
+
+The Smart Shopping Assistant reimplemented using **CrewAI Flow**, demonstrating how to translate OpenAI SDK handoffs into CrewAI's flow-based orchestration.
+
+| Agent | Model | Role |
+|-------|-------|------|
+| **Concierge** | `openai/gpt-5.2` | Orchestrator - classifies intent and synthesizes responses |
+| **Product Specialist** | `anthropic/claude-opus-4-5-20251101` | Searches products, compares prices |
+| **Review Analyst** | `anthropic/claude-opus-4-5-20251101` | Fetches and analyzes customer reviews |
+
+**Key Features:**
+- CrewAI Flow with `@start()`, `@listen()`, and `@router()` decorators
+- LLM-based intent classification (not rule-based)
+- One specialist at a time routing (matching OpenAI SDK behavior)
+- Multi-provider support (OpenAI + Anthropic)
+- Real-Time Product Search API integration
+
+➡️ **[See full documentation](3-crew-ai/smart_shopping_assistant/README.md)**
 
 ---
 

@@ -1,0 +1,239 @@
+# Smart Shopping Assistant Tasks
+# ==============================
+# Tasks for intent classification, product search, review analysis, and response synthesis
+
+classify_intent_task:
+  description: >
+    You are the Concierge for a Smart Shopping Assistant. Analyze the user's request
+    and determine which specialist to route to.
+
+    User Query: {user_query}
+
+    ## Your Specialist Agents
+
+    You have TWO specialist agents you can hand off to:
+
+    1. **Product Specialist** (intent: "product_search")
+       - Use when users want to FIND products, COMPARE prices, or get SPECIFICATIONS
+       - Examples:
+         - "Find me a laptop under $1000"
+         - "Show me wireless headphones"
+         - "Compare prices for AirPods Pro"
+         - "What are the specs of the MacBook Air?"
+         - "What's the cheapest place to buy..."
+
+    2. **Review Analyst** (intent: "review_analysis")
+       - Use when users want to understand REVIEWS, RATINGS, or CUSTOMER FEEDBACK
+       - Examples:
+         - "What do reviews say about the Sony WH-1000XM4?"
+         - "Is this product reliable?"
+         - "Any complaints about battery life?"
+         - "What are the pros and cons?"
+
+    ## Routing Rules (IMPORTANT)
+
+    - You can only route to ONE specialist at a time
+    - If a request involves BOTH products AND reviews, handle ONE at a time
+      - Prioritize PRODUCT SEARCH first (users typically want to find products before reading reviews)
+      - Example: "Find me headphones with good reviews" → route to product_search first
+    - If the request is unclear or too vague, use "general" to ask for clarification
+    - For greetings or "what can you do" questions, use "general"
+
+    ## When NOT to Route (use "general")
+
+    - Greetings: "Hi", "Hello"
+    - Capability questions: "What can you help me with?"
+    - Vague requests that need clarification: "I need something", "Help me shop"
+
+    ## Parameters to Extract
+
+    - price_min: Minimum price (e.g., "over $500" → 500, "at least $500" → 500)
+    - price_max: Maximum price (e.g., "under $100" → 100, "below $200" → 200)
+    - focus_area: Specific aspect for review analysis (e.g., "battery", "durability", "comfort")
+
+  expected_output: >
+    A JSON response with your routing decision:
+
+    ```json
+    {
+      "intent": "product_search" | "review_analysis" | "general",
+      "confidence": "high" | "medium" | "low",
+      "reasoning": "Brief explanation of why you chose this specialist",
+      "parameters": {
+        "price_min": null or number,
+        "price_max": null or number,
+        "focus_area": null or string
+      }
+    }
+    ```
+
+    Remember:
+    - Choose ONLY ONE intent (no "both" option)
+    - If query mentions both products and reviews, choose product_search first
+    - Your response must be valid JSON that can be parsed
+  agent: concierge
+
+search_products_task:
+  description: >
+    Search for products matching the user's criteria.
+
+    User Query: {user_query}
+
+    Use the search_products tool to find relevant products. Apply filters based on:
+    - Price range (if mentioned: "under $X", "$X-$Y", "around $X")
+    - Sorting preference (cheapest, best rated, most relevant)
+    - Product condition (new, used, refurbished, or any)
+
+    Search Strategy:
+    - Extract key product terms from the query
+    - Include specific features mentioned (e.g., "16GB RAM", "noise cancellation")
+    - Don't over-specify - let the API find relevant matches
+
+    IMPORTANT: Your results will be passed to the Concierge agent who will present
+    them to the user. Include enough context for the Concierge to synthesize a
+    helpful response.
+  expected_output: >
+    A structured summary for the Concierge, including:
+
+    **Search Summary:**
+    - Number of products found
+    - Search parameters used (query, price range, sorting)
+
+    **Top Products (for each):**
+    - Product name/title
+    - Price and store name (note if on sale)
+    - Rating (X/5) and number of reviews
+    - Key features or specifications
+    - Typical price range if available
+
+    **Best Value Recommendation:**
+    - Highlight the product with the best combination of price, rating, and features
+    - Include reasoning for why this is the best value
+
+    Note: Do NOT address the user directly. The Concierge will present this to the user.
+  agent: product_specialist
+
+get_product_details_task:
+  description: >
+    Get detailed specifications and price comparison for a specific product.
+
+    Product to look up: {product_name}
+    Product ID (if available): {product_id}
+
+    Use the get_product_details tool with the product_id to retrieve:
+    - Full technical specifications
+    - All available prices from different retailers
+    - Product descriptions and images
+    - Availability and shipping information
+
+    If you only have a product name and no product_id, first use search_products
+    to find the product and get its product_id.
+  expected_output: >
+    Comprehensive product details including:
+
+    **Specifications:**
+    - List all key technical specifications
+    - Highlight important features
+
+    **Price Comparison:**
+    - List prices from all available stores
+    - Note which store has the best price
+    - Include any sale prices or discounts
+
+    **Availability:**
+    - Stock status at each store
+    - Shipping/delivery information if available
+  agent: product_specialist
+
+analyze_reviews_task:
+  description: >
+    Analyze customer reviews for a product to provide sentiment insights.
+
+    Product: {product_name}
+    Product ID (if available): {product_id}
+    Focus Area (optional): {focus_area}
+
+    ## IMPORTANT: Always Use Your Tools!
+
+    Workflow - YOU MUST FOLLOW THESE STEPS:
+    1. CHECK for product_id:
+       - If product_id is empty or missing, you MUST use search_products first
+       - Search for the product by name to get its product_id
+    2. FETCH reviews:
+       - Use get_product_reviews with the product_id
+       - Fetch at least 10-20 reviews for good analysis
+    3. ANALYZE reviews:
+       - Use analyze_sentiment to extract insights
+    4. SUMMARIZE findings for the Concierge
+
+    If a focus_area is specified (e.g., "battery", "durability", "comfort"),
+    pay special attention to mentions of that aspect in your analysis.
+
+    Be objective and present both positive and negative findings.
+
+    IMPORTANT: Your results will be passed to the Concierge agent who will present
+    them to the user. Do NOT address the user directly.
+  expected_output: >
+    A comprehensive review analysis for the Concierge, including:
+
+    **Product Identified:**
+    - Product name and product_id used
+
+    **Overall Sentiment:** [positive/negative/mixed/neutral]
+    - Sentiment Score: X.XX (-1 to 1 scale)
+    - Average Rating: X.X/5 (based on X reviews analyzed)
+
+    **Rating Breakdown:**
+    - Positive (4-5 stars): X reviews
+    - Neutral (3 stars): X reviews
+    - Negative (1-2 stars): X reviews
+
+    **Top Pros (What Customers Love):**
+    - List 3-5 commonly praised aspects
+
+    **Top Cons (Common Complaints):**
+    - List 3-5 frequently mentioned issues
+
+    **Red Flags (if any):**
+    - List any safety concerns, defects, or serious issues
+
+    **Notable Reviews:**
+    - Include 1-2 helpful review excerpts
+
+    **Recommendation:**
+    - Clear recommendation based on the analysis
+
+    Note: Do NOT address the user directly. The Concierge will present this to the user.
+  agent: review_analyst
+
+synthesize_response_task:
+  description: >
+    Synthesize the specialist findings into a user-friendly final response.
+
+    Original User Query: {user_query}
+
+    Specialist Results:
+    {specialist_results}
+
+    Your job is to:
+    1. Review all the specialist findings
+    2. Organize the information in a clear, easy-to-read format
+    3. Highlight the most relevant information for the user's query
+    4. Provide actionable recommendations
+    5. Offer next steps or additional help
+
+    Be warm and conversational while being informative and helpful.
+  expected_output: >
+    A friendly, comprehensive response that:
+
+    1. Directly addresses the user's original question
+    2. Presents the key findings in an organized format:
+       - Use headers/sections for different types of information
+       - Use bullet points for lists
+       - Highlight prices, ratings, and key features
+    3. Provides a clear recommendation
+    4. Ends with an offer to help further:
+       - "Would you like to see reviews for any of these?"
+       - "Would you like me to compare prices for a specific product?"
+       - "Is there anything else I can help you find?"
+  agent: concierge
