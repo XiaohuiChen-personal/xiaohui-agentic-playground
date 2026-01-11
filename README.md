@@ -9,6 +9,7 @@ This repository contains experiments with different agentic design patterns for 
 - **OpenAI Agents SDK** - Native multi-agent support with handoffs and tools
 - **CrewAI** - YAML-based agent/task configuration with Flow orchestration
 - **LangGraph** - Stateful graph-based workflows with explicit nodes and edges
+- **AutoGen** - Microsoft's multi-agent conversation framework
 
 **Patterns explored:**
 - **Prompt Chaining** - Decomposing complex tasks into sequential subtasks
@@ -124,6 +125,10 @@ xiaohui-agentic-playground/
 │       ├── graph.py             # Graph definition
 │       ├── app.py               # Entry point
 │       └── README.md            # Detailed documentation
+├── 5-autogen/
+│   └── email_battle/            # AutoGen implementation
+│       ├── email_battle_autogen.ipynb  # Notebook implementation
+│       └── README.md            # Detailed documentation
 ├── .env.example                 # Template for environment variables
 ├── .gitignore
 ├── pyproject.toml               # Project dependencies (UV/pip)
@@ -142,6 +147,9 @@ xiaohui-agentic-playground/
 | `langchain` | LangChain core library |
 | `langchain-openai` | LangChain OpenAI integration |
 | `langchain-anthropic` | LangChain Anthropic integration |
+| `autogen-agentchat` | Microsoft AutoGen agent chat capabilities |
+| `autogen-core` | Microsoft AutoGen core framework |
+| `autogen-ext` | Microsoft AutoGen extensions |
 | `python-dotenv` | Load environment variables from `.env` |
 | `datasets` | HuggingFace Datasets (for AG News dataset) |
 | `scikit-learn` | Metrics and evaluation |
@@ -284,6 +292,33 @@ uv run python app.py
 ```
 
 ➡️ **[See full documentation](4-langgraph/email_battle/README.md)**
+
+---
+
+### 7. Email Battle (AutoGen)
+
+📁 [`5-autogen/email_battle/`](5-autogen/email_battle/)
+
+The Email Battle scenario reimplemented using **Microsoft AutoGen 0.7**, demonstrating multi-agent conversations with `AssistantAgent` and model client integrations.
+
+| Agent | Model | Role |
+|-------|-------|------|
+| **Elon Musk (DOGE)** | `claude-opus-4-5-20251101` | Head of Department of Government Efficiency |
+| **John Smith (USCIS)** | `gpt-5.2` | GS-12 Immigration Services Officer (coasting) |
+
+**Key Features:**
+- `AssistantAgent` for LLM-powered agents with system messages
+- Multi-provider support via `OpenAIChatCompletionClient` and `AnthropicChatCompletionClient`
+- Manual orchestration for decision-based flow control
+- Beautiful markdown output in Jupyter notebook
+- Comprehensive email thread formatting and decision parsing
+
+**Notable Finding:** GPT-5.2 (playing John) triggered safety guardrails and broke character, while Claude Opus 4.5 (playing Elon) stayed in character and used this as evidence for termination.
+
+**Run:**
+Open `5-autogen/email_battle/email_battle_autogen.ipynb` in Jupyter and run all cells.
+
+➡️ **[See full documentation](5-autogen/email_battle/README.md)**
 
 ---
 
