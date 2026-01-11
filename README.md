@@ -4,8 +4,13 @@ A playground for exploring agentic AI systems and workflow patterns.
 
 ## Overview
 
-This repository contains experiments with different agentic design patterns for building LLM-powered applications, including:
+This repository contains experiments with different agentic design patterns for building LLM-powered applications, using multiple frameworks:
 
+- **OpenAI Agents SDK** - Native multi-agent support with handoffs and tools
+- **CrewAI** - YAML-based agent/task configuration with Flow orchestration
+- **LangGraph** - Stateful graph-based workflows with explicit nodes and edges
+
+**Patterns explored:**
 - **Prompt Chaining** - Decomposing complex tasks into sequential subtasks
 - **Routing** - Dynamically directing inputs to specialized handlers
 - **Orchestrator-Worker** - Coordinating multiple specialized workers
@@ -111,6 +116,14 @@ xiaohui-agentic-playground/
 │   │   └── README.md            # Detailed documentation
 │   └── smart_shopping_assistant/ # CrewAI Flow implementation
 │       └── README.md            # Detailed documentation
+├── 4-langgraph/
+│   └── email_battle/            # LangGraph implementation
+│       ├── models.py            # Data models and state
+│       ├── prompts.py           # System and user prompts
+│       ├── nodes.py             # Node implementations
+│       ├── graph.py             # Graph definition
+│       ├── app.py               # Entry point
+│       └── README.md            # Detailed documentation
 ├── .env.example                 # Template for environment variables
 ├── .gitignore
 ├── pyproject.toml               # Project dependencies (UV/pip)
@@ -125,6 +138,10 @@ xiaohui-agentic-playground/
 | `openai` | OpenAI API client |
 | `anthropic` | Anthropic API client |
 | `openai-agents` | OpenAI Agents SDK for multi-agent workflows |
+| `langgraph` | LangGraph for stateful graph-based workflows |
+| `langchain` | LangChain core library |
+| `langchain-openai` | LangChain OpenAI integration |
+| `langchain-anthropic` | LangChain Anthropic integration |
 | `python-dotenv` | Load environment variables from `.env` |
 | `datasets` | HuggingFace Datasets (for AG News dataset) |
 | `scikit-learn` | Metrics and evaluation |
@@ -229,6 +246,44 @@ The Smart Shopping Assistant reimplemented using **CrewAI Flow**, demonstrating 
 - Real-Time Product Search API integration
 
 ➡️ **[See full documentation](3-crew-ai/smart_shopping_assistant/README.md)**
+
+---
+
+### 6. Email Battle (LangGraph)
+
+📁 [`4-langgraph/email_battle/`](4-langgraph/email_battle/)
+
+The Email Battle scenario reimplemented using **LangGraph**, demonstrating stateful graph-based workflows with explicit nodes and edges.
+
+| Agent | Model | Role |
+|-------|-------|------|
+| **Elon Musk (DOGE)** | `gpt-5.2` | Head of Department of Government Efficiency |
+| **John Smith (USCIS)** | `claude-opus-4-5-20251101` | GS-12 Immigration Services Officer (coasting) |
+
+**Key Features:**
+- Declarative graph-based workflow (vs imperative control flow)
+- State management with reducers (`operator.add` for email accumulation)
+- Structured output for reliable decision parsing (Pydantic models)
+- Conditional edges for dynamic routing based on decisions
+- Streaming execution for real-time progress display
+- Clean separation: models, prompts, nodes, graph, utils
+
+**Workflow:**
+```
+START → generate_mass_email (Elon)
+     → john_initial_response (John)
+     → elon_evaluate (Elon) ↔ john_followup_response (John) [loop]
+     → determine_outcome
+     → END
+```
+
+**Run:**
+```bash
+cd 4-langgraph/email_battle
+uv run python app.py
+```
+
+➡️ **[See full documentation](4-langgraph/email_battle/README.md)**
 
 ---
 
