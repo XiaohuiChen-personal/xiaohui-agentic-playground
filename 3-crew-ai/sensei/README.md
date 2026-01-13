@@ -16,13 +16,35 @@ Sensei is an intelligent tutoring system that creates personalized learning expe
 
 > **⚠️ Under Development**
 > 
-> This project is currently in the planning and design phase. Implementation has not yet begun.
+> Foundation and storage layer complete. AI crews and UI in progress.
 
 See the design documents for architecture details:
 - [`BACKEND_DESIGN.md`](./docs/BACKEND_DESIGN.md) — Backend architecture
 - [`FRONTEND_DESIGN.md`](./docs/FRONTEND_DESIGN.md) — UI design
 - [`PROPOSED_FILE_ARCHITECTURE.md`](./docs/PROPOSED_FILE_ARCHITECTURE.md) — File structure
 - [`PLANNING.md`](./docs/PLANNING.md) — Implementation milestones
+
+## 🧪 Testing
+
+**Run all unit tests:**
+```bash
+uv run pytest tests/ -v
+```
+
+**Run unit tests with coverage:**
+```bash
+uv run pytest tests/ --cov=sensei --cov-report=term-missing
+```
+
+**Run integration tests (coming soon):**
+```bash
+uv run pytest tests/ -m integration -v
+```
+
+**Run end-to-end tests (coming soon):**
+```bash
+uv run pytest tests/ -m e2e -v
+```
 
 ---
 
