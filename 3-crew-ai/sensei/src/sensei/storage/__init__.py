@@ -32,6 +32,7 @@ from sensei.storage.file_storage import (
     update_course,
     update_user_preferences,
     user_preferences_exist,
+    validate_user_preferences,
 )
 from sensei.storage.memory_manager import (
     clear_all_memory,
@@ -74,6 +75,7 @@ __all__ = [
     "user_preferences_exist",
     "delete_user_preferences",
     "update_user_preferences",
+    "validate_user_preferences",
     # File storage - Chat history
     "save_chat_history",
     "load_chat_history",

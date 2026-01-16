@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from sensei.models.enums import ExperienceLevel, LearningStyle
 from sensei.utils.constants import (
     CHAT_HISTORY_PATH,
     COURSES_DIR,
@@ -331,6 +332,8 @@ def save_user_preferences(preferences: dict[str, Any]) -> None:
 def load_user_preferences() -> dict[str, Any]:
     """Load user preferences from a JSON file.
     
+    Validates enum values on load to handle corrupted or legacy data.
+    
     Returns:
         User preferences dictionary. Returns defaults if file doesn't exist.
     """
@@ -339,7 +342,8 @@ def load_user_preferences() -> dict[str, Any]:
     
     try:
         with open(USER_PREFERENCES_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
+            raw_prefs = json.load(f)
+            return validate_user_preferences(raw_prefs)
     except (json.JSONDecodeError, IOError):
         return get_default_preferences()
 
@@ -347,17 +351,48 @@ def load_user_preferences() -> dict[str, Any]:
 def get_default_preferences() -> dict[str, Any]:
     """Get default user preferences.
     
+    Uses enum values as the single source of truth for defaults.
+    
     Returns:
         Dictionary with default preference values.
     """
     return {
         "name": "",
-        "learning_style": "reading",
+        "learning_style": str(LearningStyle.READING),
         "session_length_minutes": 30,
-        "experience_level": "beginner",
+        "experience_level": str(ExperienceLevel.BEGINNER),
         "goals": "",
         "is_onboarded": False,
     }
+
+
+def validate_user_preferences(preferences: dict[str, Any]) -> dict[str, Any]:
+    """Validate and normalize user preferences.
+    
+    Ensures enum values are valid, falling back to defaults if not.
+    This provides defensive handling of corrupted or legacy data.
+    
+    Args:
+        preferences: Raw preferences dictionary from storage.
+    
+    Returns:
+        Validated preferences with guaranteed valid enum values.
+    """
+    validated = dict(preferences)
+    
+    # Validate learning_style
+    try:
+        LearningStyle(validated.get("learning_style", ""))
+    except ValueError:
+        validated["learning_style"] = str(LearningStyle.READING)
+    
+    # Validate experience_level
+    try:
+        ExperienceLevel(validated.get("experience_level", ""))
+    except ValueError:
+        validated["experience_level"] = str(ExperienceLevel.BEGINNER)
+    
+    return validated
 
 
 def user_preferences_exist() -> bool:

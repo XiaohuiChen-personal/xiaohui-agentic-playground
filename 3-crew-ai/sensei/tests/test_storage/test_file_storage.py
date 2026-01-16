@@ -623,6 +623,109 @@ class TestUserPreferencesStorage:
         assert result["is_onboarded"] is True
 
 
+class TestValidateUserPreferences:
+    """Tests for validate_user_preferences function."""
+    
+    def test_validate_valid_preferences(self):
+        """validate_user_preferences should pass through valid preferences."""
+        prefs = {
+            "name": "Test",
+            "learning_style": "visual",
+            "experience_level": "intermediate",
+            "session_length_minutes": 45,
+        }
+        result = fs.validate_user_preferences(prefs)
+        
+        assert result["learning_style"] == "visual"
+        assert result["experience_level"] == "intermediate"
+    
+    def test_validate_invalid_learning_style_uses_default(self):
+        """validate_user_preferences should replace invalid learning_style with default."""
+        prefs = {
+            "name": "Test",
+            "learning_style": "invalid_style",
+            "experience_level": "beginner",
+        }
+        result = fs.validate_user_preferences(prefs)
+        
+        assert result["learning_style"] == "reading"  # Default
+        assert result["experience_level"] == "beginner"  # Unchanged
+    
+    def test_validate_invalid_experience_level_uses_default(self):
+        """validate_user_preferences should replace invalid experience_level with default."""
+        prefs = {
+            "name": "Test",
+            "learning_style": "hands_on",
+            "experience_level": "expert",  # Invalid
+        }
+        result = fs.validate_user_preferences(prefs)
+        
+        assert result["learning_style"] == "hands_on"  # Unchanged
+        assert result["experience_level"] == "beginner"  # Default
+    
+    def test_validate_missing_enum_fields_uses_default(self):
+        """validate_user_preferences should use defaults for missing enum fields."""
+        prefs = {
+            "name": "Test",
+        }
+        result = fs.validate_user_preferences(prefs)
+        
+        assert result["learning_style"] == "reading"
+        assert result["experience_level"] == "beginner"
+    
+    def test_validate_empty_string_enum_uses_default(self):
+        """validate_user_preferences should replace empty string with default."""
+        prefs = {
+            "learning_style": "",
+            "experience_level": "",
+        }
+        result = fs.validate_user_preferences(prefs)
+        
+        assert result["learning_style"] == "reading"
+        assert result["experience_level"] == "beginner"
+    
+    def test_validate_preserves_non_enum_fields(self):
+        """validate_user_preferences should preserve other fields unchanged."""
+        prefs = {
+            "name": "Test User",
+            "learning_style": "invalid",
+            "experience_level": "advanced",
+            "session_length_minutes": 60,
+            "goals": "Learn Python",
+            "is_onboarded": True,
+            "custom_field": "custom_value",
+        }
+        result = fs.validate_user_preferences(prefs)
+        
+        assert result["name"] == "Test User"
+        assert result["session_length_minutes"] == 60
+        assert result["goals"] == "Learn Python"
+        assert result["is_onboarded"] is True
+        assert result["custom_field"] == "custom_value"
+    
+    def test_load_user_preferences_validates_on_load(
+        self, mock_file_storage_paths
+    ):
+        """load_user_preferences should validate enum values when loading."""
+        # Save preferences with invalid enum value
+        prefs_path = mock_file_storage_paths["user_preferences_path"]
+        import json
+        with open(prefs_path, "w") as f:
+            json.dump({
+                "name": "Test",
+                "learning_style": "corrupted_value",
+                "experience_level": "also_corrupted",
+                "session_length_minutes": 30,
+            }, f)
+        
+        # Load should validate and fix the invalid values
+        loaded = fs.load_user_preferences()
+        
+        assert loaded["learning_style"] == "reading"  # Fixed to default
+        assert loaded["experience_level"] == "beginner"  # Fixed to default
+        assert loaded["name"] == "Test"  # Preserved
+
+
 class TestChatHistoryStorage:
     """Tests for chat history storage operations."""
     

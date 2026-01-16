@@ -10,6 +10,7 @@ storage layer (database.py, file_storage.py) for crew execution.
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
+from sensei.models.enums import ExperienceLevel, LearningStyle
 from sensei.utils.constants import DATA_DIR, DATABASE_PATH
 
 if TYPE_CHECKING:
@@ -230,6 +231,10 @@ def get_user_context() -> dict[str, Any]:
     Returns user preferences and profile information that crews
     can use to personalize their output.
     
+    Note: Uses enum default values as single source of truth.
+    The load_user_preferences() function now validates enum values,
+    so defaults here are only for extra safety.
+    
     Returns:
         Dictionary with user context including:
         - name, learning_style, experience_level, goals
@@ -240,8 +245,8 @@ def get_user_context() -> dict[str, Any]:
     prefs = load_user_preferences()
     return {
         "name": prefs.get("name", "Learner"),
-        "learning_style": prefs.get("learning_style", "reading"),
-        "experience_level": prefs.get("experience_level", "beginner"),
+        "learning_style": prefs.get("learning_style", str(LearningStyle.READING)),
+        "experience_level": prefs.get("experience_level", str(ExperienceLevel.BEGINNER)),
         "session_length_minutes": prefs.get("session_length_minutes", 30),
         "goals": prefs.get("goals", ""),
         "is_onboarded": prefs.get("is_onboarded", False),
