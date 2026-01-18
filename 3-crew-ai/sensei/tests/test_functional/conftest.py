@@ -31,23 +31,68 @@ def pytest_configure(config):
 def has_api_keys():
     """Check if required API keys are available.
     
+    All three keys are REQUIRED for functional tests:
+    - GOOGLE_API_KEY: For Gemini models (curriculum_architect)
+    - ANTHROPIC_API_KEY: For Claude models (content_researcher, knowledge_teacher, quiz_designer)
+    - OPENAI_API_KEY: For GPT models (qa_mentor, performance_analyst) and embeddings
+    
     Returns:
         True if all required keys are present.
     """
-    required_keys = ["OPENAI_API_KEY"]
-    optional_keys = ["ANTHROPIC_API_KEY", "GOOGLE_API_KEY"]
+    required_keys = [
+        "GOOGLE_API_KEY",      # Gemini - curriculum_architect
+        "ANTHROPIC_API_KEY",   # Claude - content_researcher, knowledge_teacher, quiz_designer
+        "OPENAI_API_KEY",      # GPT - qa_mentor, performance_analyst, and embeddings
+    ]
     
-    has_required = all(os.getenv(key) for key in required_keys)
-    has_optional = any(os.getenv(key) for key in optional_keys)
-    
-    return has_required and has_optional
+    return all(os.getenv(key) for key in required_keys)
 
 
 @pytest.fixture(scope="session")
 def skip_if_no_keys(has_api_keys):
     """Skip test if API keys are not available."""
     if not has_api_keys:
-        pytest.skip("API keys not available for functional tests")
+        missing_keys = []
+        if not os.getenv("GOOGLE_API_KEY"):
+            missing_keys.append("GOOGLE_API_KEY (for Gemini models)")
+        if not os.getenv("ANTHROPIC_API_KEY"):
+            missing_keys.append("ANTHROPIC_API_KEY (for Claude models)")
+        if not os.getenv("OPENAI_API_KEY"):
+            missing_keys.append("OPENAI_API_KEY (for GPT models and embeddings)")
+        
+        missing_str = "\n  - ".join(missing_keys)
+        pytest.skip(f"Missing required API keys for functional tests:\n  - {missing_str}")
+
+
+def check_api_keys_at_startup():
+    """Check and report API key status at test session start.
+    
+    This is called during conftest loading to provide early feedback
+    about missing API keys.
+    """
+    required = {
+        "GOOGLE_API_KEY": "Gemini (curriculum_architect)",
+        "ANTHROPIC_API_KEY": "Claude (content_researcher, knowledge_teacher, quiz_designer)",
+        "OPENAI_API_KEY": "GPT (qa_mentor, performance_analyst) + embeddings",
+    }
+    
+    missing = []
+    for key, usage in required.items():
+        if not os.getenv(key):
+            missing.append(f"{key}: {usage}")
+    
+    if missing:
+        import warnings
+        warnings.warn(
+            f"\n⚠️ Missing API keys for functional tests:\n" +
+            "\n".join(f"  - {m}" for m in missing) +
+            "\n\nFunctional tests will be skipped unless all keys are set.",
+            UserWarning
+        )
+
+
+# Check API keys when conftest is loaded
+check_api_keys_at_startup()
 
 
 @pytest.fixture(scope="module")
