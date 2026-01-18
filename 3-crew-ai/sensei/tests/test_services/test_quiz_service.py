@@ -2,8 +2,18 @@
 
 import pytest
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
-from sensei.models.schemas import AnswerResult, Quiz, QuizQuestion, QuizResult
+from sensei.models.enums import ExperienceLevel, LearningStyle, QuestionType
+from sensei.models.schemas import (
+    AnswerResult,
+    Concept,
+    Module,
+    Quiz,
+    QuizQuestion,
+    QuizResult,
+    UserPreferences,
+)
 from sensei.services.course_service import CourseService
 from sensei.services.quiz_service import QuizService
 from sensei.utils.constants import QUIZ_PASS_THRESHOLD
@@ -11,11 +21,60 @@ from sensei.utils.constants import QUIZ_PASS_THRESHOLD
 
 @pytest.fixture
 def course_with_quiz_service(mock_file_storage_paths, mock_database):
-    """Create a course and return both course and quiz service."""
-    course_service = CourseService(database=mock_database)
+    """Create a course and return both course and quiz service (stub mode)."""
+    course_service = CourseService(database=mock_database, use_ai=False)
     course = course_service.create_course("Test Topic")
-    quiz_service = QuizService(database=mock_database)
+    quiz_service = QuizService(database=mock_database, use_ai=False)
     return course, quiz_service, mock_database
+
+
+@pytest.fixture
+def course_with_mock_crew(mock_file_storage_paths, mock_database):
+    """Create a course and return quiz service with mock crew."""
+    course_service = CourseService(database=mock_database, use_ai=False)
+    course = course_service.create_course("Test Topic")
+    
+    # Create mock quiz for generate_quiz
+    mock_quiz = Quiz(
+        module_id="module-1",
+        module_title="Test Module",
+        questions=[
+            QuizQuestion(
+                question="AI Generated Question?",
+                question_type=QuestionType.MULTIPLE_CHOICE,
+                options=["A", "B", "C", "D"],
+                correct_answer="A",
+                explanation="AI explanation",
+                concept_id="concept-1",
+                difficulty=2,
+            ),
+        ],
+    )
+    
+    # Create mock result for evaluate_answers
+    mock_result = QuizResult(
+        quiz_id="quiz-1",
+        course_id=course.id,
+        module_id="module-1",
+        module_title="Test Module",
+        score=0.8,
+        correct_count=4,
+        total_questions=5,
+        weak_concepts=[],
+        feedback="AI Generated Feedback",
+        passed=True,
+    )
+    
+    mock_crew = MagicMock()
+    mock_crew.generate_quiz.return_value = mock_quiz
+    mock_crew.evaluate_answers.return_value = mock_result
+    
+    quiz_service = QuizService(
+        database=mock_database,
+        assessment_crew=mock_crew,
+        use_ai=True,
+    )
+    return course, quiz_service, mock_crew, mock_database
 
 
 class TestQuizServiceGenerateQuiz:
@@ -984,3 +1043,220 @@ class TestQuizServiceConceptMastery:
             mastery = db.get_concept_mastery(course.id, question.concept_id)
             assert mastery is not None
             assert mastery["mastery_level"] == 0.3
+
+
+class TestQuizServiceGenerateQuizWithAI:
+    """Tests for QuizService.generate_quiz() with AI mode."""
+    
+    def test_generate_quiz_uses_assessment_crew(
+        self, course_with_mock_crew
+    ):
+        """Should use AssessmentCrew when use_ai=True."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        quiz = service.generate_quiz(course.id, 0)
+        
+        # Verify crew was called
+        mock_crew.generate_quiz.assert_called_once()
+        assert quiz.module_title == "Test Module"
+        assert len(quiz.questions) == 1
+    
+    def test_generate_quiz_passes_user_prefs_to_crew(
+        self, course_with_mock_crew
+    ):
+        """Should pass user preferences to AssessmentCrew."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        
+        prefs = UserPreferences(
+            name="Test User",
+            learning_style=LearningStyle.VISUAL,
+            experience_level=ExperienceLevel.ADVANCED,
+        )
+        
+        service.generate_quiz(course.id, 0, user_prefs=prefs)
+        
+        call_args = mock_crew.generate_quiz.call_args
+        assert call_args.kwargs["user_prefs"] == prefs
+    
+    def test_generate_quiz_passes_module_to_crew(
+        self, course_with_mock_crew
+    ):
+        """Should pass Module object to AssessmentCrew."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        
+        service.generate_quiz(course.id, 0)
+        
+        call_args = mock_crew.generate_quiz.call_args
+        module = call_args.kwargs["module"]
+        assert isinstance(module, Module)
+        assert len(module.concepts) > 0
+    
+    def test_generate_quiz_handles_crew_failure(
+        self, course_with_mock_crew
+    ):
+        """Should raise RuntimeError when crew fails."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        mock_crew.generate_quiz.side_effect = Exception("LLM API Error")
+        
+        with pytest.raises(RuntimeError, match="Failed to generate quiz"):
+            service.generate_quiz(course.id, 0)
+    
+    def test_generate_quiz_lazy_initializes_crew(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should lazily initialize AssessmentCrew if not provided."""
+        course_service = CourseService(database=mock_database, use_ai=False)
+        course = course_service.create_course("Test Topic")
+        
+        mock_quiz = Quiz(
+            module_id="module-1",
+            module_title="Test Module",
+            questions=[
+                QuizQuestion(
+                    question="Lazy AI Question?",
+                    question_type=QuestionType.MULTIPLE_CHOICE,
+                    options=["A", "B"],
+                    correct_answer="A",
+                    explanation="Explanation",
+                    concept_id="concept-1",
+                    difficulty=2,
+                ),
+            ],
+        )
+        
+        with patch(
+            "sensei.crews.assessment_crew.AssessmentCrew"
+        ) as MockCrewClass:
+            mock_crew_instance = MagicMock()
+            mock_crew_instance.generate_quiz.return_value = mock_quiz
+            MockCrewClass.return_value = mock_crew_instance
+            
+            service = QuizService(database=mock_database, use_ai=True)
+            quiz = service.generate_quiz(course.id, 0)
+            
+            MockCrewClass.assert_called_once()
+            assert quiz.module_title == "Test Module"
+
+
+class TestQuizServiceGetResultsWithAI:
+    """Tests for QuizService.get_results() with AI evaluation."""
+    
+    def test_get_results_uses_ai_for_open_ended(
+        self, course_with_mock_crew
+    ):
+        """Should use AI evaluation when quiz has open-ended questions."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        
+        # Create a quiz with an open-ended question
+        open_ended_quiz = Quiz(
+            module_id="module-1",
+            module_title="Test Module",
+            questions=[
+                QuizQuestion(
+                    question="Explain recursion",
+                    question_type=QuestionType.OPEN_ENDED,
+                    options=[],
+                    correct_answer="Recursion is...",
+                    explanation="Explanation",
+                    concept_id="concept-1",
+                    difficulty=3,
+                ),
+            ],
+        )
+        mock_crew.generate_quiz.return_value = open_ended_quiz
+        
+        # Generate and take quiz
+        service.generate_quiz(course.id, 0)
+        service.submit_answer(
+            open_ended_quiz.questions[0].id,
+            "My explanation of recursion"
+        )
+        
+        # Get results - should use AI
+        result = service.get_results()
+        
+        mock_crew.evaluate_answers.assert_called_once()
+        assert result.feedback == "AI Generated Feedback"
+    
+    def test_get_results_direct_for_non_open_ended(
+        self, course_with_mock_crew
+    ):
+        """Should use direct evaluation for quizzes without open-ended."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        
+        # Generate quiz (which has only MC questions in our mock)
+        quiz = service.generate_quiz(course.id, 0)
+        
+        # Answer the question
+        service.submit_answer(quiz.questions[0].id, "A")
+        
+        # Get results - should NOT use AI (no open-ended)
+        result = service.get_results()
+        
+        # evaluate_answers should NOT be called
+        mock_crew.evaluate_answers.assert_not_called()
+        assert "%" in result.feedback  # Should have stub feedback
+    
+    def test_get_results_handles_ai_failure(
+        self, course_with_mock_crew
+    ):
+        """Should raise RuntimeError when AI evaluation fails."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        
+        # Create quiz with open-ended question
+        open_ended_quiz = Quiz(
+            module_id="module-1",
+            module_title="Test Module",
+            questions=[
+                QuizQuestion(
+                    question="Explain something",
+                    question_type=QuestionType.OPEN_ENDED,
+                    options=[],
+                    correct_answer="Answer",
+                    explanation="Explanation",
+                    concept_id="concept-1",
+                    difficulty=2,
+                ),
+            ],
+        )
+        mock_crew.generate_quiz.return_value = open_ended_quiz
+        mock_crew.evaluate_answers.side_effect = Exception("LLM API Error")
+        
+        service.generate_quiz(course.id, 0)
+        service.submit_answer(open_ended_quiz.questions[0].id, "My answer")
+        
+        with pytest.raises(RuntimeError, match="Failed to evaluate quiz"):
+            service.get_results()
+    
+    def test_get_results_saves_ai_result_to_database(
+        self, course_with_mock_crew
+    ):
+        """Should save AI-evaluated result to database."""
+        course, service, mock_crew, db = course_with_mock_crew
+        
+        # Create quiz with open-ended question
+        open_ended_quiz = Quiz(
+            module_id="module-1",
+            module_title="Test Module",
+            questions=[
+                QuizQuestion(
+                    question="Explain",
+                    question_type=QuestionType.OPEN_ENDED,
+                    options=[],
+                    correct_answer="Answer",
+                    explanation="Explanation",
+                    concept_id="concept-1",
+                    difficulty=2,
+                ),
+            ],
+        )
+        mock_crew.generate_quiz.return_value = open_ended_quiz
+        
+        service.generate_quiz(course.id, 0)
+        service.submit_answer(open_ended_quiz.questions[0].id, "My answer")
+        service.get_results()
+        
+        # Check database
+        history = db.get_quiz_history(course.id)
+        assert len(history) >= 1
+        latest = history[0]
+        assert latest["feedback"] == "AI Generated Feedback"

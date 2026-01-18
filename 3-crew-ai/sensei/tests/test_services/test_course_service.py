@@ -2,19 +2,21 @@
 
 import pytest
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
-from sensei.models.schemas import Concept, Course, Module, Progress
+from sensei.models.enums import ExperienceLevel, LearningStyle
+from sensei.models.schemas import Concept, Course, Module, Progress, UserPreferences
 from sensei.services.course_service import CourseService
 
 
 class TestCourseServiceCreateCourse:
-    """Tests for CourseService.create_course()."""
+    """Tests for CourseService.create_course() with stub mode."""
     
     def test_create_course_returns_course_object(
         self, mock_file_storage_paths, mock_database
     ):
         """Should return a Course object."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Python Basics")
         
         assert isinstance(course, Course)
@@ -23,7 +25,7 @@ class TestCourseServiceCreateCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should set the course title to the topic."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Machine Learning")
         
         assert course.title == "Machine Learning"
@@ -32,7 +34,7 @@ class TestCourseServiceCreateCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should generate a description for the course."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Data Science")
         
         assert "Data Science" in course.description
@@ -42,7 +44,7 @@ class TestCourseServiceCreateCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should generate multiple modules."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("React")
         
         assert len(course.modules) >= 3
@@ -52,7 +54,7 @@ class TestCourseServiceCreateCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should generate concepts within modules."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Docker")
         
         for module in course.modules:
@@ -63,7 +65,7 @@ class TestCourseServiceCreateCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should save course to file storage."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Kubernetes")
         
         # Verify course can be loaded back
@@ -75,7 +77,7 @@ class TestCourseServiceCreateCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should initialize progress record with 0%."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("TypeScript")
         
         progress = service.get_course_progress(course.id)
@@ -89,7 +91,7 @@ class TestCourseServiceCreateCourse:
     ):
         """Should set created_at timestamp."""
         before = datetime.now()
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Go")
         after = datetime.now()
         
@@ -99,7 +101,7 @@ class TestCourseServiceCreateCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should generate unique IDs for courses."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course1 = service.create_course("Python")
         course2 = service.create_course("Python")
         
@@ -109,7 +111,7 @@ class TestCourseServiceCreateCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should raise ValueError for empty topic."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         
         with pytest.raises(ValueError, match="Topic cannot be empty"):
             service.create_course("")
@@ -118,7 +120,7 @@ class TestCourseServiceCreateCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should raise ValueError for whitespace-only topic."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         
         with pytest.raises(ValueError, match="Topic cannot be empty"):
             service.create_course("   ")
@@ -127,10 +129,214 @@ class TestCourseServiceCreateCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should strip leading/trailing whitespace from topic."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("  Python Basics  ")
         
         assert course.title == "Python Basics"
+    
+    def test_create_course_with_user_prefs(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should accept user preferences."""
+        service = CourseService(database=mock_database, use_ai=False)
+        prefs = UserPreferences(
+            name="Test User",
+            learning_style=LearningStyle.VISUAL,
+            experience_level=ExperienceLevel.BEGINNER,
+        )
+        
+        course = service.create_course("Python Basics", user_prefs=prefs)
+        
+        assert isinstance(course, Course)
+
+
+class TestCourseServiceCreateCourseWithAI:
+    """Tests for CourseService.create_course() with AI mode."""
+    
+    def test_create_course_uses_curriculum_crew(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should use CurriculumCrew when use_ai=True."""
+        # Create a mock CurriculumCrew
+        mock_crew = MagicMock()
+        mock_course = Course(
+            title="AI Generated Python Course",
+            description="An AI-generated course about Python",
+            modules=[
+                Module(
+                    title="Getting Started",
+                    description="Introduction",
+                    concepts=[
+                        Concept(title="What is Python?", content="Intro", order=0),
+                    ],
+                    order=0,
+                    estimated_minutes=30,
+                ),
+            ],
+        )
+        mock_crew.create_curriculum.return_value = mock_course
+        
+        service = CourseService(
+            database=mock_database,
+            curriculum_crew=mock_crew,
+            use_ai=True,
+        )
+        
+        course = service.create_course("Python Basics")
+        
+        # Verify crew was called
+        mock_crew.create_curriculum.assert_called_once()
+        call_args = mock_crew.create_curriculum.call_args
+        assert call_args.kwargs["topic"] == "Python Basics"
+        assert isinstance(call_args.kwargs["user_prefs"], UserPreferences)
+        
+        # Verify course was returned
+        assert course.title == "AI Generated Python Course"
+    
+    def test_create_course_passes_user_prefs_to_crew(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should pass user preferences to CurriculumCrew."""
+        mock_crew = MagicMock()
+        mock_crew.create_curriculum.return_value = Course(
+            title="Custom Course",
+            description="Test",
+            modules=[],
+        )
+        
+        prefs = UserPreferences(
+            name="Alice",
+            learning_style=LearningStyle.HANDS_ON,
+            experience_level=ExperienceLevel.ADVANCED,
+        )
+        
+        service = CourseService(
+            database=mock_database,
+            curriculum_crew=mock_crew,
+            use_ai=True,
+        )
+        
+        service.create_course("Test Topic", user_prefs=prefs)
+        
+        call_args = mock_crew.create_curriculum.call_args
+        assert call_args.kwargs["user_prefs"] == prefs
+    
+    def test_create_course_handles_crew_failure(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should raise RuntimeError when crew fails."""
+        mock_crew = MagicMock()
+        mock_crew.create_curriculum.side_effect = Exception("LLM API Error")
+        
+        service = CourseService(
+            database=mock_database,
+            curriculum_crew=mock_crew,
+            use_ai=True,
+        )
+        
+        with pytest.raises(RuntimeError, match="Failed to generate course"):
+            service.create_course("Test Topic")
+    
+    def test_create_course_lazy_initializes_crew(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should lazily initialize CurriculumCrew if not provided."""
+        mock_course = Course(
+            title="Lazy Course",
+            description="Test",
+            modules=[],
+        )
+        
+        # Patch the import at the location where it's used
+        with patch(
+            "sensei.crews.curriculum_crew.CurriculumCrew"
+        ) as MockCrewClass:
+            mock_crew_instance = MagicMock()
+            mock_crew_instance.create_curriculum.return_value = mock_course
+            MockCrewClass.return_value = mock_crew_instance
+            
+            # Create service without crew
+            service = CourseService(
+                database=mock_database,
+                use_ai=True,
+            )
+            
+            course = service.create_course("Test Topic")
+            
+            # Verify CurriculumCrew was instantiated
+            MockCrewClass.assert_called_once()
+            assert course.title == "Lazy Course"
+    
+    def test_create_course_saves_ai_course_to_storage(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should save AI-generated course to storage."""
+        mock_crew = MagicMock()
+        mock_course = Course(
+            title="AI Course",
+            description="Generated by AI",
+            modules=[
+                Module(
+                    title="Module 1",
+                    description="First module",
+                    concepts=[
+                        Concept(title="Concept 1", content="Content", order=0),
+                    ],
+                    order=0,
+                    estimated_minutes=30,
+                ),
+            ],
+        )
+        mock_crew.create_curriculum.return_value = mock_course
+        
+        service = CourseService(
+            database=mock_database,
+            curriculum_crew=mock_crew,
+            use_ai=True,
+        )
+        
+        created = service.create_course("Test")
+        
+        # Verify course was saved and can be loaded
+        loaded = service.get_course(created.id)
+        assert loaded is not None
+        assert loaded.title == "AI Course"
+    
+    def test_create_course_initializes_progress_for_ai_course(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should initialize progress for AI-generated course."""
+        mock_crew = MagicMock()
+        mock_course = Course(
+            title="AI Course",
+            description="Test",
+            modules=[
+                Module(
+                    title="Module 1",
+                    description="M1",
+                    concepts=[
+                        Concept(title="C1", content="Content", order=0),
+                        Concept(title="C2", content="Content", order=1),
+                    ],
+                    order=0,
+                    estimated_minutes=30,
+                ),
+            ],
+        )
+        mock_crew.create_curriculum.return_value = mock_course
+        
+        service = CourseService(
+            database=mock_database,
+            curriculum_crew=mock_crew,
+            use_ai=True,
+        )
+        
+        course = service.create_course("Test")
+        
+        progress = service.get_course_progress(course.id)
+        assert progress.completion_percentage == 0.0
+        assert progress.total_modules == 1
+        assert progress.total_concepts == 2
 
 
 class TestCourseServiceListCourses:
@@ -140,7 +346,7 @@ class TestCourseServiceListCourses:
         self, mock_file_storage_paths, mock_database
     ):
         """Should return empty list when no courses exist."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         courses = service.list_courses()
         
         assert courses == []
@@ -149,7 +355,7 @@ class TestCourseServiceListCourses:
         self, mock_file_storage_paths, mock_database
     ):
         """Should return all courses."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         
         # Create multiple courses
         service.create_course("Python")
@@ -164,7 +370,7 @@ class TestCourseServiceListCourses:
         self, mock_file_storage_paths, mock_database
     ):
         """Should return course metadata."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         service.create_course("Flask")
         
         courses = service.list_courses()
@@ -185,7 +391,7 @@ class TestCourseServiceListCoursesWithProgress:
         self, mock_file_storage_paths, mock_database
     ):
         """Should include progress for each course."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         service.create_course("Django")
         
         courses = service.list_courses_with_progress()
@@ -198,7 +404,7 @@ class TestCourseServiceListCoursesWithProgress:
         self, mock_file_storage_paths, mock_database
     ):
         """Should show actual progress values."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("FastAPI")
         
         # Update progress
@@ -221,7 +427,7 @@ class TestCourseServiceGetCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should return None for unknown course ID."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         result = service.get_course("nonexistent-id")
         
         assert result is None
@@ -230,7 +436,7 @@ class TestCourseServiceGetCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should return complete Course object."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         created = service.create_course("Node.js")
         
         loaded = service.get_course(created.id)
@@ -244,7 +450,7 @@ class TestCourseServiceGetCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should preserve full course structure."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         created = service.create_course("Vue.js")
         
         loaded = service.get_course(created.id)
@@ -264,7 +470,7 @@ class TestCourseServiceDeleteCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should return False for unknown course."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         result = service.delete_course("nonexistent")
         
         assert result is False
@@ -273,7 +479,7 @@ class TestCourseServiceDeleteCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should return True when course is deleted."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Scala")
         
         result = service.delete_course(course.id)
@@ -284,7 +490,7 @@ class TestCourseServiceDeleteCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should remove course from file storage."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Kotlin")
         
         service.delete_course(course.id)
@@ -295,7 +501,7 @@ class TestCourseServiceDeleteCourse:
         self, mock_file_storage_paths, mock_database
     ):
         """Should remove progress data."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Swift")
         
         # Verify progress exists
@@ -316,14 +522,14 @@ class TestCourseServiceCourseExists:
         self, mock_file_storage_paths, mock_database
     ):
         """Should return False for unknown course."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         assert service.course_exists("unknown") is False
     
     def test_course_exists_returns_true_for_existing(
         self, mock_file_storage_paths, mock_database
     ):
         """Should return True for existing course."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("C++")
         
         assert service.course_exists(course.id) is True
@@ -332,7 +538,7 @@ class TestCourseServiceCourseExists:
         self, mock_file_storage_paths, mock_database
     ):
         """Should return False after course is deleted."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("C#")
         
         service.delete_course(course.id)
@@ -347,7 +553,7 @@ class TestCourseServiceStubGeneration:
         self, mock_file_storage_paths, mock_database
     ):
         """Should set correct order on modules."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Test")
         
         for idx, module in enumerate(course.modules):
@@ -357,7 +563,7 @@ class TestCourseServiceStubGeneration:
         self, mock_file_storage_paths, mock_database
     ):
         """Should set correct order on concepts within modules."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Test")
         
         for module in course.modules:
@@ -368,7 +574,7 @@ class TestCourseServiceStubGeneration:
         self, mock_file_storage_paths, mock_database
     ):
         """Should set estimated minutes based on concept count."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Test")
         
         for module in course.modules:
@@ -380,7 +586,7 @@ class TestCourseServiceStubGeneration:
         self, mock_file_storage_paths, mock_database
     ):
         """Should set content for all concepts."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         course = service.create_course("Test")
         
         for module in course.modules:
@@ -396,7 +602,7 @@ class TestCourseServiceEdgeCases:
         self, mock_file_storage_paths, mock_database
     ):
         """Should return empty progress for nonexistent course."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         progress = service.get_course_progress("nonexistent")
         
         assert progress.course_id == "nonexistent"
@@ -406,7 +612,7 @@ class TestCourseServiceEdgeCases:
         self, mock_file_storage_paths, mock_database
     ):
         """Should handle course dict with missing fields."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         
         # Minimal course dict
         data = {
@@ -425,7 +631,7 @@ class TestCourseServiceEdgeCases:
         self, mock_file_storage_paths, mock_database
     ):
         """Should handle course dict with string datetime."""
-        service = CourseService(database=mock_database)
+        service = CourseService(database=mock_database, use_ai=False)
         
         data = {
             "id": "test",

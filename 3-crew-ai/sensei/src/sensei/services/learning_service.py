@@ -1,18 +1,20 @@
 """Learning service for managing learning sessions.
 
 This service manages active learning sessions, including navigation
-through concepts and Q&A interactions. Lesson generation is stubbed
-and will be replaced with CrewAI integration in Milestone 6.
+through concepts and Q&A interactions. Lesson generation uses the
+TeachingCrew for AI-powered content, with stub fallbacks for testing.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sensei.models.enums import ConceptStatus, MessageRole
 from sensei.models.schemas import (
     ChatMessage,
+    Concept,
     ConceptLesson,
     LearningSession,
+    UserPreferences,
 )
 from sensei.storage.database import Database
 from sensei.storage.file_storage import (
@@ -21,8 +23,13 @@ from sensei.storage.file_storage import (
     get_module,
     load_chat_history,
     load_course,
+    load_user_preferences,
     save_chat_history,
 )
+from sensei.storage.memory_manager import format_previous_struggles
+
+if TYPE_CHECKING:
+    from sensei.crews.teaching_crew import TeachingCrew
 
 
 class LearningService:
@@ -31,41 +38,51 @@ class LearningService:
     This service handles:
     - Starting and ending learning sessions
     - Navigating between concepts (next/previous)
-    - Generating lesson content (stub for now)
-    - Q&A interactions (stub for now)
+    - Generating lesson content (AI-powered via TeachingCrew)
+    - Q&A interactions (AI-powered via TeachingCrew)
     - Session state management
+    
+    The service supports two modes:
+    - AI mode (default): Uses TeachingCrew for intelligent content
+    - Stub mode: Uses static templates for testing without LLM calls
     
     Example:
         ```python
+        # With AI (production)
         service = LearningService()
-        
-        # Start a session
         session = service.start_session("course-123")
-        
-        # Get current concept lesson
         lesson = service.get_current_concept()
-        
-        # Navigate to next concept
-        lesson = service.next_concept()
-        
-        # Ask a question
         answer = service.ask_question("What does this mean?")
         
-        # End session
-        summary = service.end_session()
+        # Without AI (testing)
+        service = LearningService(use_ai=False)
         ```
     """
     
-    def __init__(self, database: Database | None = None):
+    def __init__(
+        self,
+        database: Database | None = None,
+        teaching_crew: "TeachingCrew | None" = None,
+        use_ai: bool = True,
+    ):
         """Initialize the learning service.
         
         Args:
             database: Optional Database instance.
+            teaching_crew: Optional TeachingCrew instance for AI generation.
+                If not provided and use_ai=True, will be created on demand.
+            use_ai: Whether to use AI for lesson/answer generation.
+                Set to False for testing without LLM calls.
         """
         self._db = database or Database()
+        self._teaching_crew = teaching_crew
+        self._use_ai = use_ai
         self._session: LearningSession | None = None
         self._course_data: dict[str, Any] | None = None
         self._db_session_id: int | None = None
+        
+        # Cache for lesson content to avoid regeneration
+        self._lesson_cache: dict[str, str] = {}
     
     @property
     def is_session_active(self) -> bool:
@@ -134,17 +151,25 @@ class LearningService:
         
         return self._session
     
-    def get_current_concept(self) -> ConceptLesson:
+    def get_current_concept(
+        self,
+        user_prefs: UserPreferences | None = None,
+    ) -> ConceptLesson:
         """Get the current concept with generated lesson content.
         
-        Note: Lesson content is currently stubbed. Will be replaced
-        with TeachingCrew integration in Milestone 6.
+        When use_ai=True, this uses the TeachingCrew to generate
+        personalized lesson content. When use_ai=False, it uses
+        stub content for testing.
+        
+        Args:
+            user_prefs: Optional user preferences for personalization.
+                If not provided, will attempt to load from storage.
         
         Returns:
             ConceptLesson with concept info and lesson content.
         
         Raises:
-            RuntimeError: If no session is active.
+            RuntimeError: If no session is active or concept not found.
         """
         if not self._session or not self._course_data:
             raise RuntimeError("No active learning session")
@@ -163,11 +188,30 @@ class LearningService:
         module = context["module"]
         nav = context["navigation"]
         
-        # Generate stub lesson content
-        lesson_content = self._generate_lesson_stub(concept, module)
+        # Get or generate lesson content
+        concept_id = concept.get("id", "")
+        
+        # Check cache first
+        if concept_id in self._lesson_cache:
+            lesson_content = self._lesson_cache[concept_id]
+        elif self._use_ai:
+            # Generate with AI
+            if user_prefs is None:
+                prefs_dict = load_user_preferences()
+                user_prefs = (
+                    UserPreferences(**prefs_dict) if prefs_dict else UserPreferences()
+                )
+            lesson_content = self._generate_lesson_with_ai(
+                concept, module, user_prefs
+            )
+            # Cache the generated lesson
+            self._lesson_cache[concept_id] = lesson_content
+        else:
+            # Use stub
+            lesson_content = self._generate_lesson_stub(concept, module)
         
         return ConceptLesson(
-            concept_id=concept.get("id", ""),
+            concept_id=concept_id,
             concept_title=concept.get("title", ""),
             lesson_content=lesson_content,
             key_takeaways=self._generate_takeaways_stub(concept),
@@ -180,6 +224,64 @@ class LearningService:
             has_next=nav.get("has_next", True),
             is_module_complete=nav.get("is_module_complete", False),
         )
+    
+    def _generate_lesson_with_ai(
+        self,
+        concept: dict[str, Any],
+        module: dict[str, Any],
+        user_prefs: UserPreferences,
+    ) -> str:
+        """Generate lesson content using the TeachingCrew.
+        
+        Args:
+            concept: Concept dictionary from course data.
+            module: Module dictionary containing the concept.
+            user_prefs: User preferences for personalization.
+        
+        Returns:
+            Generated lesson content as Markdown string.
+        
+        Raises:
+            RuntimeError: If lesson generation fails.
+        """
+        # Lazy initialization of TeachingCrew
+        if self._teaching_crew is None:
+            from sensei.crews.teaching_crew import TeachingCrew
+            self._teaching_crew = TeachingCrew()
+        
+        # Convert concept dict to Concept object
+        concept_obj = Concept(
+            id=concept.get("id", ""),
+            title=concept.get("title", ""),
+            content=concept.get("content", ""),
+            order=concept.get("order", 0),
+        )
+        
+        # Get previous struggles for context
+        concept_id = concept.get("id", "")
+        if self._session and concept_id:
+            mastery_data = self._db.get_concept_mastery(
+                self._session.course_id, concept_id
+            )
+            # Format mastery data as struggle context
+            if mastery_data:
+                previous_struggles = format_previous_struggles(mastery_data)
+            else:
+                previous_struggles = ""
+        else:
+            previous_struggles = ""
+        
+        try:
+            return self._teaching_crew.teach_concept(
+                concept=concept_obj,
+                user_prefs=user_prefs,
+                module_title=module.get("title", ""),
+                previous_struggles=previous_struggles,
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to generate lesson for '{concept_obj.title}': {e}"
+            ) from e
     
     def next_concept(self) -> ConceptLesson | None:
         """Navigate to the next concept.
@@ -255,17 +357,24 @@ class LearningService:
         
         return self.get_current_concept()
     
-    def ask_question(self, question: str) -> str:
+    def ask_question(
+        self,
+        question: str,
+        user_prefs: UserPreferences | None = None,
+    ) -> str:
         """Ask a question about the current concept.
         
-        Note: Answer generation is currently stubbed. Will be replaced
-        with TeachingCrew integration in Milestone 6.
+        When use_ai=True, this uses the TeachingCrew Q&A Mentor
+        to provide personalized answers. When use_ai=False, it
+        uses stub responses for testing.
         
         Args:
             question: The user's question.
+            user_prefs: Optional user preferences for personalization.
+                If not provided, will attempt to load from storage.
         
         Returns:
-            AI-generated answer (stub for now).
+            AI-generated answer.
         
         Raises:
             RuntimeError: If no session is active.
@@ -282,8 +391,16 @@ class LearningService:
         user_msg = ChatMessage.user_message(question)
         self._session.add_message(user_msg)
         
-        # Generate stub answer
-        answer = self._generate_answer_stub(question)
+        # Generate answer
+        if self._use_ai:
+            if user_prefs is None:
+                prefs_dict = load_user_preferences()
+                user_prefs = (
+                    UserPreferences(**prefs_dict) if prefs_dict else UserPreferences()
+                )
+            answer = self._generate_answer_with_ai(question, user_prefs)
+        else:
+            answer = self._generate_answer_stub(question)
         
         # Create assistant message
         assistant_msg = ChatMessage.assistant_message(answer)
@@ -296,6 +413,68 @@ class LearningService:
         self._track_question_asked()
         
         return answer
+    
+    def _generate_answer_with_ai(
+        self,
+        question: str,
+        user_prefs: UserPreferences,
+    ) -> str:
+        """Generate an answer using the TeachingCrew Q&A Mentor.
+        
+        Args:
+            question: The user's question.
+            user_prefs: User preferences for personalization.
+        
+        Returns:
+            Generated answer as Markdown string.
+        
+        Raises:
+            RuntimeError: If answer generation fails.
+        """
+        if not self._session or not self._course_data:
+            raise RuntimeError("No active learning session")
+        
+        # Lazy initialization of TeachingCrew
+        if self._teaching_crew is None:
+            from sensei.crews.teaching_crew import TeachingCrew
+            self._teaching_crew = TeachingCrew()
+        
+        # Get current concept
+        modules = self._course_data.get("modules", [])
+        module = modules[self._session.current_module_idx]
+        concepts = module.get("concepts", [])
+        concept_dict = concepts[self._session.current_concept_idx]
+        
+        # Convert to Concept object
+        concept_obj = Concept(
+            id=concept_dict.get("id", ""),
+            title=concept_dict.get("title", ""),
+            content=concept_dict.get("content", ""),
+            order=concept_dict.get("order", 0),
+        )
+        
+        # Get cached lesson content
+        concept_id = concept_dict.get("id", "")
+        lesson_content = self._lesson_cache.get(concept_id, "")
+        
+        # Format chat history for context
+        chat_history = [
+            {"role": msg.role.value, "content": msg.content}
+            for msg in self._session.chat_history[-10:]  # Last 10 messages
+        ]
+        
+        try:
+            return self._teaching_crew.answer_question(
+                question=question,
+                concept=concept_obj,
+                lesson_content=lesson_content,
+                chat_history=chat_history,
+                user_prefs=user_prefs,
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to generate answer for question: {e}"
+            ) from e
     
     def end_session(self) -> dict[str, Any]:
         """End the current learning session.
@@ -341,12 +520,21 @@ class LearningService:
             },
         }
         
-        # Clear session
+        # Clear session and cache
         self._session = None
         self._course_data = None
         self._db_session_id = None
+        self._lesson_cache = {}
         
         return summary
+    
+    def clear_lesson_cache(self) -> None:
+        """Clear the lesson content cache.
+        
+        Useful when user preferences change and lessons
+        need to be regenerated.
+        """
+        self._lesson_cache = {}
     
     def is_module_complete(self) -> bool:
         """Check if current module is complete.

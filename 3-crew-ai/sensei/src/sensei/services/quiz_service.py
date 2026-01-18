@@ -1,56 +1,77 @@
 """Quiz service for managing assessments.
 
 This service handles quiz generation, answer submission, and result
-calculation. Quiz generation is stubbed and will be replaced with
-CrewAI integration in Milestone 6.
+calculation. Quiz generation uses the AssessmentCrew for AI-powered
+quizzes, with stub fallbacks for testing.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sensei.models.enums import QuestionType
-from sensei.models.schemas import AnswerResult, Quiz, QuizQuestion, QuizResult
+from sensei.models.schemas import (
+    AnswerResult,
+    Concept,
+    Module,
+    Quiz,
+    QuizQuestion,
+    QuizResult,
+    UserPreferences,
+)
 from sensei.storage.database import Database
-from sensei.storage.file_storage import load_course
+from sensei.storage.file_storage import load_course, load_user_preferences
 from sensei.utils.constants import QUIZ_PASS_THRESHOLD
+
+if TYPE_CHECKING:
+    from sensei.crews.assessment_crew import AssessmentCrew
 
 
 class QuizService:
     """Service for managing quiz assessments.
     
     This service handles:
-    - Generating quizzes for modules (stub for now)
+    - Generating quizzes for modules (AI-powered via AssessmentCrew)
     - Processing answer submissions
-    - Calculating and returning results
+    - Calculating and returning results (AI-powered evaluation)
     - Tracking weak concepts
+    
+    The service supports two modes:
+    - AI mode (default): Uses AssessmentCrew for intelligent quizzes
+    - Stub mode: Uses static templates for testing without LLM calls
     
     Example:
         ```python
+        # With AI (production)
         service = QuizService()
-        
-        # Generate a quiz for a module
         quiz = service.generate_quiz("course-123", 0)
         
-        # Submit answers
-        for question in quiz.questions:
-            result = service.submit_answer(question.id, "user_answer")
-            print(f"Correct: {result.is_correct}")
-        
-        # Get final results
-        results = service.get_results()
-        print(f"Score: {results.score_percentage}%")
+        # Without AI (testing)
+        service = QuizService(use_ai=False)
+        quiz = service.generate_quiz("course-123", 0)
         ```
     """
     
-    def __init__(self, database: Database | None = None):
+    def __init__(
+        self,
+        database: Database | None = None,
+        assessment_crew: "AssessmentCrew | None" = None,
+        use_ai: bool = True,
+    ):
         """Initialize the quiz service.
         
         Args:
             database: Optional Database instance.
+            assessment_crew: Optional AssessmentCrew instance for AI generation.
+                If not provided and use_ai=True, will be created on demand.
+            use_ai: Whether to use AI for quiz generation/evaluation.
+                Set to False for testing without LLM calls.
         """
         self._db = database or Database()
+        self._assessment_crew = assessment_crew
+        self._use_ai = use_ai
         self._current_quiz: Quiz | None = None
         self._course_id: str | None = None
+        self._module_idx: int | None = None
         self._answers: dict[str, str] = {}
         self._results: list[AnswerResult] = []
     
@@ -69,22 +90,27 @@ class QuizService:
         course_id: str,
         module_idx: int,
         num_questions: int = 5,
+        user_prefs: UserPreferences | None = None,
     ) -> Quiz:
         """Generate a quiz for a module.
         
-        Note: This currently uses a stub generator. In Milestone 6,
-        this will be replaced with AssessmentCrew integration.
+        When use_ai=True, this uses the AssessmentCrew to generate
+        targeted quiz questions. When use_ai=False, it uses
+        stub content for testing.
         
         Args:
             course_id: The unique identifier for the course.
             module_idx: Zero-based index of the module.
             num_questions: Number of questions to generate (default 5).
+            user_prefs: Optional user preferences for personalization.
+                If not provided, will attempt to load from storage.
         
         Returns:
             Quiz object with generated questions.
         
         Raises:
             ValueError: If course or module doesn't exist.
+            RuntimeError: If AI quiz generation fails (when use_ai=True).
         """
         # Load course and module
         course = load_course(course_id)
@@ -95,18 +121,122 @@ class QuizService:
         if module_idx < 0 or module_idx >= len(modules):
             raise ValueError(f"Module index out of range: {module_idx}")
         
-        module = modules[module_idx]
+        module_dict = modules[module_idx]
         
-        # Generate stub quiz
-        quiz = self._generate_quiz_stub(module, num_questions)
+        # Generate quiz
+        if self._use_ai:
+            if user_prefs is None:
+                prefs_dict = load_user_preferences()
+                user_prefs = (
+                    UserPreferences(**prefs_dict) if prefs_dict else UserPreferences()
+                )
+            quiz = self._generate_quiz_with_ai(
+                module_dict, course_id, user_prefs, num_questions
+            )
+        else:
+            quiz = self._generate_quiz_stub(module_dict, num_questions)
         
         # Store state
         self._current_quiz = quiz
         self._course_id = course_id
+        self._module_idx = module_idx
         self._answers = {}
         self._results = []
         
         return quiz
+    
+    def _generate_quiz_with_ai(
+        self,
+        module_dict: dict[str, Any],
+        course_id: str,
+        user_prefs: UserPreferences,
+        num_questions: int,
+    ) -> Quiz:
+        """Generate a quiz using the AssessmentCrew.
+        
+        Args:
+            module_dict: Module dictionary from course data.
+            course_id: The course identifier.
+            user_prefs: User preferences for personalization.
+            num_questions: Number of questions to generate.
+        
+        Returns:
+            Generated Quiz object.
+        
+        Raises:
+            RuntimeError: If quiz generation fails.
+        """
+        # Lazy initialization of AssessmentCrew
+        if self._assessment_crew is None:
+            from sensei.crews.assessment_crew import AssessmentCrew
+            self._assessment_crew = AssessmentCrew()
+        
+        # Convert module dict to Module object
+        concepts = [
+            Concept(
+                id=c.get("id", ""),
+                title=c.get("title", ""),
+                content=c.get("content", ""),
+                order=c.get("order", idx),
+            )
+            for idx, c in enumerate(module_dict.get("concepts", []))
+        ]
+        
+        module = Module(
+            id=module_dict.get("id", ""),
+            title=module_dict.get("title", ""),
+            description=module_dict.get("description", ""),
+            concepts=concepts,
+            order=module_dict.get("order", 0),
+            estimated_minutes=module_dict.get("estimated_minutes", 60),
+        )
+        
+        # Get weak concepts from previous quiz history
+        weak_concepts = self._get_weak_concepts_from_history(course_id, module.id)
+        
+        # Get previous attempts count for this module
+        history = self._db.get_quiz_history(course_id)
+        previous_attempts = sum(
+            1 for h in history if h.get("module_id") == module.id
+        )
+        
+        try:
+            return self._assessment_crew.generate_quiz(
+                module=module,
+                weak_concepts=weak_concepts,
+                user_prefs=user_prefs,
+                previous_attempts=previous_attempts,
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to generate quiz for module '{module.title}': {e}"
+            ) from e
+    
+    def _get_weak_concepts_from_history(
+        self,
+        course_id: str,
+        module_id: str,
+    ) -> list[str]:
+        """Get weak concepts from previous quiz history.
+        
+        Args:
+            course_id: The course identifier.
+            module_id: The module identifier.
+        
+        Returns:
+            List of concept IDs that need extra attention.
+        """
+        # Get quiz history for this course and filter by module
+        all_history = self._db.get_quiz_history(course_id)
+        module_history = [h for h in all_history if h.get("module_id") == module_id]
+        
+        weak = set()
+        for result in module_history[:3]:  # Look at last 3 quizzes
+            if result.get("weak_concepts"):
+                for concept_id in result["weak_concepts"]:
+                    weak.add(concept_id)
+        
+        return list(weak)
     
     def submit_answer(self, question_id: str, answer: str) -> AnswerResult:
         """Submit an answer for a quiz question.
@@ -163,16 +293,73 @@ class QuizService:
         
         return result
     
-    def get_results(self) -> QuizResult:
+    def get_results(
+        self,
+        user_prefs: UserPreferences | None = None,
+    ) -> QuizResult:
         """Get final quiz results.
         
-        Calculates score, identifies weak concepts, and saves to database.
+        When use_ai=True and there are open-ended questions, uses the
+        AssessmentCrew Performance Analyst for intelligent evaluation.
+        Otherwise, calculates score directly from submitted answers.
+        
+        Args:
+            user_prefs: Optional user preferences for feedback personalization.
+                If not provided, will attempt to load from storage.
         
         Returns:
             QuizResult with score, feedback, and recommendations.
         
         Raises:
             RuntimeError: If no quiz is active.
+        """
+        if not self._current_quiz or not self._course_id:
+            raise RuntimeError("No active quiz")
+        
+        # Check if we should use AI evaluation
+        # (for open-ended questions or more personalized feedback)
+        has_open_ended = any(
+            q.question_type == QuestionType.OPEN_ENDED
+            for q in self._current_quiz.questions
+        )
+        
+        if self._use_ai and has_open_ended:
+            if user_prefs is None:
+                prefs_dict = load_user_preferences()
+                user_prefs = (
+                    UserPreferences(**prefs_dict) if prefs_dict else UserPreferences()
+                )
+            result = self._evaluate_with_ai(user_prefs)
+        else:
+            result = self._evaluate_directly()
+        
+        # Save to database
+        self._db.save_quiz_result({
+            "course_id": self._course_id,
+            "module_id": self._current_quiz.module_id,
+            "module_title": self._current_quiz.module_title,
+            "quiz_id": self._current_quiz.id,
+            "score": result.score,
+            "correct_count": result.correct_count,
+            "total_questions": result.total_questions,
+            "weak_concepts": result.weak_concepts,
+            "feedback": result.feedback,
+            "passed": result.passed,
+        })
+        
+        # Update concept mastery
+        self._update_concept_mastery(result.weak_concepts, result.score)
+        
+        return result
+    
+    def _evaluate_directly(self) -> QuizResult:
+        """Evaluate quiz using direct answer comparison.
+        
+        Used for quizzes without open-ended questions or when
+        AI evaluation is disabled.
+        
+        Returns:
+            QuizResult with calculated score and stub feedback.
         """
         if not self._current_quiz or not self._course_id:
             raise RuntimeError("No active quiz")
@@ -191,8 +378,7 @@ class QuizService:
         # Generate feedback
         feedback = self._generate_feedback_stub(score, weak_concepts)
         
-        # Create result
-        result = QuizResult(
+        return QuizResult(
             quiz_id=self._current_quiz.id,
             course_id=self._course_id,
             module_id=self._current_quiz.module_id,
@@ -205,25 +391,50 @@ class QuizService:
             passed=passed,
             completed_at=datetime.now(),
         )
+    
+    def _evaluate_with_ai(self, user_prefs: UserPreferences) -> QuizResult:
+        """Evaluate quiz using the AssessmentCrew Performance Analyst.
         
-        # Save to database
-        self._db.save_quiz_result({
-            "course_id": self._course_id,
-            "module_id": self._current_quiz.module_id,
-            "module_title": self._current_quiz.module_title,
-            "quiz_id": self._current_quiz.id,
-            "score": score,
-            "correct_count": correct_count,
-            "total_questions": total,
-            "weak_concepts": weak_concepts,
-            "feedback": feedback,
-            "passed": passed,
-        })
+        Provides more intelligent evaluation, especially for open-ended
+        questions, and more personalized feedback.
         
-        # Update concept mastery for weak concepts
-        self._update_concept_mastery(weak_concepts, score)
+        Args:
+            user_prefs: User preferences for feedback personalization.
         
-        return result
+        Returns:
+            QuizResult with AI-generated feedback.
+        
+        Raises:
+            RuntimeError: If AI evaluation fails.
+        """
+        if not self._current_quiz or not self._course_id:
+            raise RuntimeError("No active quiz")
+        
+        # Lazy initialization of AssessmentCrew
+        if self._assessment_crew is None:
+            from sensei.crews.assessment_crew import AssessmentCrew
+            self._assessment_crew = AssessmentCrew()
+        
+        # Get previous scores for context
+        all_history = self._db.get_quiz_history(self._course_id)
+        module_history = [
+            h for h in all_history
+            if h.get("module_id") == self._current_quiz.module_id
+        ]
+        previous_scores = [h.get("score", 0.0) for h in module_history[:5]]
+        
+        try:
+            return self._assessment_crew.evaluate_answers(
+                quiz=self._current_quiz,
+                answers=self._answers,
+                user_prefs=user_prefs,
+                course_id=self._course_id,
+                previous_scores=previous_scores,
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to evaluate quiz: {e}"
+            ) from e
     
     def is_passed(self) -> bool:
         """Check if current quiz was passed.
@@ -296,6 +507,7 @@ class QuizService:
         """
         self._current_quiz = None
         self._course_id = None
+        self._module_idx = None
         self._answers = {}
         self._results = []
     

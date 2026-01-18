@@ -1,68 +1,92 @@
 """Course service for managing courses and curriculum.
 
 This service provides methods for creating, listing, and managing courses.
-Course generation is stubbed for now and will be replaced with CrewAI
-integration in Milestone 6.
+Course generation uses the CurriculumCrew for AI-powered curriculum creation,
+with a stub fallback for testing without LLM calls.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from sensei.models.schemas import Concept, Course, Module, Progress
+from sensei.models.schemas import Concept, Course, Module, Progress, UserPreferences
 from sensei.storage.database import Database
 from sensei.storage.file_storage import (
     delete_course,
     list_courses_with_metadata,
     load_course,
+    load_user_preferences,
     save_course,
 )
+
+if TYPE_CHECKING:
+    from sensei.crews.curriculum_crew import CurriculumCrew
 
 
 class CourseService:
     """Service for managing courses and curriculum.
     
     This service handles:
-    - Creating new courses (stub for now, real AI in M6)
+    - Creating new courses (AI-powered via CurriculumCrew)
     - Listing and retrieving courses
     - Deleting courses and associated data
     
+    The service supports two modes:
+    - AI mode (default): Uses CurriculumCrew for intelligent course generation
+    - Stub mode: Uses static templates for testing without LLM calls
+    
     Example:
         ```python
+        # With AI (production)
         service = CourseService()
-        
-        # Create a new course
         course = service.create_course("Python Basics")
         
-        # List all courses
-        courses = service.list_courses()
-        
-        # Get full course details
-        course = service.get_course("course-123")
+        # Without AI (testing)
+        service = CourseService(use_ai=False)
+        course = service.create_course("Python Basics")
         ```
     """
     
-    def __init__(self, database: Database | None = None):
+    def __init__(
+        self,
+        database: Database | None = None,
+        curriculum_crew: "CurriculumCrew | None" = None,
+        use_ai: bool = True,
+    ):
         """Initialize the course service.
         
         Args:
             database: Optional Database instance for progress management.
+            curriculum_crew: Optional CurriculumCrew instance for AI generation.
+                If not provided and use_ai=True, will be created on demand.
+            use_ai: Whether to use AI for course generation. Set to False
+                for testing without LLM calls.
         """
         self._db = database or Database()
+        self._curriculum_crew = curriculum_crew
+        self._use_ai = use_ai
     
-    def create_course(self, topic: str) -> Course:
+    def create_course(
+        self,
+        topic: str,
+        user_prefs: UserPreferences | None = None,
+    ) -> Course:
         """Create a new course for the given topic.
         
-        Note: This currently uses a stub generator. In Milestone 6,
-        this will be replaced with CurriculumCrew integration.
+        When use_ai=True, this uses the CurriculumCrew to generate
+        a personalized curriculum based on the topic and user preferences.
+        When use_ai=False, it uses a stub generator for testing.
         
         Args:
             topic: The topic to create a course for.
+            user_prefs: Optional user preferences for personalization.
+                If not provided, will attempt to load from storage.
         
         Returns:
             The created Course object.
         
         Raises:
             ValueError: If topic is empty or whitespace only.
+            RuntimeError: If AI course generation fails (when use_ai=True).
         """
         # Validate topic
         if not topic or not topic.strip():
@@ -71,8 +95,16 @@ class CourseService:
         # Normalize topic (strip whitespace)
         topic = topic.strip()
         
-        # Generate course structure (stub for now)
-        course = self._generate_course_stub(topic)
+        # Load user preferences if not provided
+        if user_prefs is None:
+            prefs_dict = load_user_preferences()
+            user_prefs = UserPreferences(**prefs_dict) if prefs_dict else UserPreferences()
+        
+        # Generate course structure
+        if self._use_ai:
+            course = self._generate_course_with_ai(topic, user_prefs)
+        else:
+            course = self._generate_course_stub(topic)
         
         # Save course to file storage
         course_dict = course.model_dump()
@@ -92,6 +124,41 @@ class CourseService:
         })
         
         return course
+    
+    def _generate_course_with_ai(
+        self,
+        topic: str,
+        user_prefs: UserPreferences,
+    ) -> Course:
+        """Generate a course using the CurriculumCrew.
+        
+        This method lazily initializes the CurriculumCrew if not provided
+        during construction.
+        
+        Args:
+            topic: The topic to create a course for.
+            user_prefs: User preferences for personalization.
+        
+        Returns:
+            The generated Course object.
+        
+        Raises:
+            RuntimeError: If course generation fails.
+        """
+        # Lazy initialization of CurriculumCrew
+        if self._curriculum_crew is None:
+            from sensei.crews.curriculum_crew import CurriculumCrew
+            self._curriculum_crew = CurriculumCrew()
+        
+        try:
+            return self._curriculum_crew.create_curriculum(
+                topic=topic,
+                user_prefs=user_prefs,
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to generate course for '{topic}': {e}"
+            ) from e
     
     def list_courses(self) -> list[dict[str, Any]]:
         """List all courses with basic metadata.
@@ -196,16 +263,14 @@ class CourseService:
         """Generate a stub course structure for testing.
         
         Creates a realistic-looking course with 3-5 modules,
-        each containing 3-5 concepts.
+        each containing 3-5 concepts. Used when use_ai=False
+        or as a fallback in development/testing.
         
         Args:
             topic: The topic for the course.
         
         Returns:
             A Course object with stub content.
-        
-        Note:
-            This will be replaced by CurriculumCrew in Milestone 6.
         """
         # Create modules based on topic
         modules = self._generate_stub_modules(topic)

@@ -2,19 +2,45 @@
 
 import pytest
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
-from sensei.models.schemas import ChatMessage, ConceptLesson, LearningSession
+from sensei.models.enums import ExperienceLevel, LearningStyle
+from sensei.models.schemas import (
+    ChatMessage,
+    Concept,
+    ConceptLesson,
+    LearningSession,
+    UserPreferences,
+)
 from sensei.services.course_service import CourseService
 from sensei.services.learning_service import LearningService
 
 
 @pytest.fixture
 def course_with_service(mock_file_storage_paths, mock_database):
-    """Create a course and return both course and services."""
-    course_service = CourseService(database=mock_database)
+    """Create a course and return both course and services (stub mode)."""
+    course_service = CourseService(database=mock_database, use_ai=False)
     course = course_service.create_course("Test Topic")
-    learning_service = LearningService(database=mock_database)
+    learning_service = LearningService(database=mock_database, use_ai=False)
     return course, learning_service, mock_database
+
+
+@pytest.fixture
+def course_with_mock_crew(mock_file_storage_paths, mock_database):
+    """Create a course and return services with mock crew."""
+    course_service = CourseService(database=mock_database, use_ai=False)
+    course = course_service.create_course("Test Topic")
+    
+    mock_crew = MagicMock()
+    mock_crew.teach_concept.return_value = "# AI Generated Lesson\n\nThis is AI content."
+    mock_crew.answer_question.return_value = "Great question! Here's the AI answer."
+    
+    learning_service = LearningService(
+        database=mock_database,
+        teaching_crew=mock_crew,
+        use_ai=True,
+    )
+    return course, learning_service, mock_crew, mock_database
 
 
 class TestLearningServiceStartSession:
@@ -628,3 +654,225 @@ class TestLearningServiceEdgeCases:
         lesson = service.get_current_concept()
         
         assert isinstance(lesson.code_examples, list)
+
+
+class TestLearningServiceGetCurrentConceptWithAI:
+    """Tests for LearningService.get_current_concept() with AI mode."""
+    
+    def test_get_current_concept_uses_teaching_crew(
+        self, course_with_mock_crew
+    ):
+        """Should use TeachingCrew when use_ai=True."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        service.start_session(course.id)
+        
+        lesson = service.get_current_concept()
+        
+        # Verify crew was called
+        mock_crew.teach_concept.assert_called_once()
+        assert "AI Generated Lesson" in lesson.lesson_content
+    
+    def test_get_current_concept_passes_user_prefs_to_crew(
+        self, course_with_mock_crew
+    ):
+        """Should pass user preferences to TeachingCrew."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        service.start_session(course.id)
+        
+        prefs = UserPreferences(
+            name="Test User",
+            learning_style=LearningStyle.VISUAL,
+            experience_level=ExperienceLevel.ADVANCED,
+        )
+        
+        service.get_current_concept(user_prefs=prefs)
+        
+        call_args = mock_crew.teach_concept.call_args
+        assert call_args.kwargs["user_prefs"] == prefs
+    
+    def test_get_current_concept_caches_lesson(
+        self, course_with_mock_crew
+    ):
+        """Should cache generated lesson and not regenerate."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        service.start_session(course.id)
+        
+        # First call
+        service.get_current_concept()
+        assert mock_crew.teach_concept.call_count == 1
+        
+        # Second call should use cache
+        service.get_current_concept()
+        assert mock_crew.teach_concept.call_count == 1  # Not called again
+    
+    def test_get_current_concept_handles_crew_failure(
+        self, course_with_mock_crew
+    ):
+        """Should raise RuntimeError when crew fails."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        mock_crew.teach_concept.side_effect = Exception("LLM API Error")
+        service.start_session(course.id)
+        
+        with pytest.raises(RuntimeError, match="Failed to generate lesson"):
+            service.get_current_concept()
+    
+    def test_get_current_concept_lazy_initializes_crew(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should lazily initialize TeachingCrew if not provided."""
+        course_service = CourseService(database=mock_database, use_ai=False)
+        course = course_service.create_course("Test Topic")
+        
+        # Patch the import
+        with patch(
+            "sensei.crews.teaching_crew.TeachingCrew"
+        ) as MockCrewClass:
+            mock_crew_instance = MagicMock()
+            mock_crew_instance.teach_concept.return_value = "Lazy AI Lesson"
+            MockCrewClass.return_value = mock_crew_instance
+            
+            # Create service without crew
+            service = LearningService(
+                database=mock_database,
+                use_ai=True,
+            )
+            service.start_session(course.id)
+            
+            lesson = service.get_current_concept()
+            
+            # Verify TeachingCrew was instantiated
+            MockCrewClass.assert_called_once()
+            assert "Lazy AI Lesson" in lesson.lesson_content
+
+
+class TestLearningServiceAskQuestionWithAI:
+    """Tests for LearningService.ask_question() with AI mode."""
+    
+    def test_ask_question_uses_teaching_crew(
+        self, course_with_mock_crew
+    ):
+        """Should use TeachingCrew Q&A Mentor when use_ai=True."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        service.start_session(course.id)
+        
+        answer = service.ask_question("What is this?")
+        
+        # Verify crew was called
+        mock_crew.answer_question.assert_called_once()
+        assert "AI answer" in answer
+    
+    def test_ask_question_passes_question_to_crew(
+        self, course_with_mock_crew
+    ):
+        """Should pass the question to TeachingCrew."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        service.start_session(course.id)
+        
+        service.ask_question("Why is Python great?")
+        
+        call_args = mock_crew.answer_question.call_args
+        assert call_args.kwargs["question"] == "Why is Python great?"
+    
+    def test_ask_question_passes_user_prefs_to_crew(
+        self, course_with_mock_crew
+    ):
+        """Should pass user preferences to TeachingCrew."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        service.start_session(course.id)
+        
+        prefs = UserPreferences(
+            name="Test User",
+            learning_style=LearningStyle.HANDS_ON,
+            experience_level=ExperienceLevel.BEGINNER,
+        )
+        
+        service.ask_question("Test question", user_prefs=prefs)
+        
+        call_args = mock_crew.answer_question.call_args
+        assert call_args.kwargs["user_prefs"] == prefs
+    
+    def test_ask_question_includes_cached_lesson(
+        self, course_with_mock_crew
+    ):
+        """Should include cached lesson content in Q&A context."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        service.start_session(course.id)
+        
+        # Generate and cache lesson
+        service.get_current_concept()
+        
+        # Ask question
+        service.ask_question("Test question")
+        
+        call_args = mock_crew.answer_question.call_args
+        assert call_args.kwargs["lesson_content"] == "# AI Generated Lesson\n\nThis is AI content."
+    
+    def test_ask_question_handles_crew_failure(
+        self, course_with_mock_crew
+    ):
+        """Should raise RuntimeError when crew fails."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        mock_crew.answer_question.side_effect = Exception("LLM API Error")
+        service.start_session(course.id)
+        
+        with pytest.raises(RuntimeError, match="Failed to generate answer"):
+            service.ask_question("Test question")
+
+
+class TestLearningServiceLessonCache:
+    """Tests for lesson caching functionality."""
+    
+    def test_cache_cleared_on_end_session(
+        self, course_with_mock_crew
+    ):
+        """Should clear cache when session ends."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        service.start_session(course.id)
+        
+        # Generate and cache lesson
+        service.get_current_concept()
+        assert mock_crew.teach_concept.call_count == 1
+        
+        # End and restart session
+        service.end_session()
+        service.start_session(course.id)
+        
+        # Should regenerate
+        service.get_current_concept()
+        assert mock_crew.teach_concept.call_count == 2
+    
+    def test_clear_lesson_cache(
+        self, course_with_mock_crew
+    ):
+        """Should be able to manually clear cache."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        service.start_session(course.id)
+        
+        # Generate and cache lesson
+        service.get_current_concept()
+        assert mock_crew.teach_concept.call_count == 1
+        
+        # Clear cache
+        service.clear_lesson_cache()
+        
+        # Should regenerate
+        service.get_current_concept()
+        assert mock_crew.teach_concept.call_count == 2
+    
+    def test_different_concepts_not_cached_together(
+        self, course_with_mock_crew
+    ):
+        """Should generate new lesson for different concepts."""
+        course, service, mock_crew, _ = course_with_mock_crew
+        service.start_session(course.id)
+        
+        # First concept
+        service.get_current_concept()
+        assert mock_crew.teach_concept.call_count == 1
+        
+        # Move to next concept
+        service.next_concept()
+        
+        # Should generate new lesson
+        service.get_current_concept()
+        assert mock_crew.teach_concept.call_count == 2
