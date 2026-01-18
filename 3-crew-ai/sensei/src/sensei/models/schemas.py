@@ -526,30 +526,94 @@ class Progress(BaseModel):
 # They don't include auto-generated fields like id, created_at, etc.
 # After receiving the LLM output, the crew converts these to full models.
 
-class ConceptOutput(BaseModel):
-    """LLM output schema for a concept (without auto-generated fields)."""
+# -----------------------------------------------------------------------------
+# Curriculum Flow: Step 1 - Outline Models (lightweight, structure only)
+# -----------------------------------------------------------------------------
+
+class ConceptOutline(BaseModel):
+    """Lightweight concept outline (just title and order, no content yet).
+    
+    Used in Step 1 of CurriculumFlow for the curriculum architect to define
+    what concepts should be covered without writing full content.
+    """
     title: str = Field(..., description="Concept title")
-    content: str = Field(default="", description="Markdown content with overview, key points, misconceptions, applications")
+    order: int = Field(default=0, ge=0, description="Order within the module (0-based)")
+
+
+class ModuleOutline(BaseModel):
+    """Lightweight module outline for curriculum planning.
+    
+    Used in Step 1 of CurriculumFlow. Contains structure but not detailed content.
+    The content_researcher will later expand each module in parallel.
+    """
+    title: str = Field(..., description="Module title")
+    description: str = Field(default="", description="Brief module description (1-2 sentences)")
+    order: int = Field(default=0, ge=0, description="Order within the course (0-based)")
+    estimated_minutes: int = Field(default=60, ge=1, description="Estimated time in minutes")
+    concepts: list[ConceptOutline] = Field(
+        default_factory=list,
+        description="3-5 concept titles (no content yet)"
+    )
+
+
+class CurriculumOutline(BaseModel):
+    """High-level curriculum structure from the architect (Step 1 output).
+    
+    This lightweight structure contains only the course skeleton:
+    - Module titles and brief descriptions
+    - Concept titles (no detailed content)
+    
+    The content_researcher will expand each module in parallel in Step 2.
+    """
+    title: str = Field(..., description="Course title based on the topic")
+    description: str = Field(default="", description="Brief course description (1-2 sentences)")
+    experience_level: str = Field(default="beginner", description="Target experience level")
+    learning_style: str = Field(default="reading", description="Target learning style")
+    modules: list[ModuleOutline] = Field(
+        default_factory=list,
+        description="5-6 module outlines with concept titles"
+    )
+
+
+# -----------------------------------------------------------------------------
+# Curriculum Flow: Step 2 - Expanded Module Output (full content)
+# -----------------------------------------------------------------------------
+
+class ConceptOutput(BaseModel):
+    """LLM output schema for a fully expanded concept (with content)."""
+    title: str = Field(..., description="Concept title")
+    content: str = Field(
+        default="",
+        description="Detailed markdown content with overview, key points, misconceptions, applications"
+    )
     order: int = Field(default=0, ge=0, description="Order within the module (0-based)")
 
 
 class ModuleOutput(BaseModel):
-    """LLM output schema for a module (without auto-generated fields)."""
+    """LLM output schema for a fully expanded module (with concept content).
+    
+    Used in Step 2 of CurriculumFlow when content_researcher expands a module.
+    """
     title: str = Field(..., description="Module title")
     description: str = Field(default="", description="Module description with learning objectives")
     order: int = Field(default=0, ge=0, description="Order within the course (0-based)")
     estimated_minutes: int = Field(default=60, ge=1, description="Estimated time (60-240 minutes)")
-    concepts: list[ConceptOutput] = Field(default_factory=list, description="3-7 concepts per module")
+    concepts: list[ConceptOutput] = Field(default_factory=list, description="3-5 concepts with full content")
 
+
+# -----------------------------------------------------------------------------
+# Curriculum Flow: Step 3 - Final Course Output
+# -----------------------------------------------------------------------------
 
 class CourseOutput(BaseModel):
-    """LLM output schema for a course (without auto-generated fields).
+    """LLM output schema for a complete course (without auto-generated fields).
     
-    Used as output_pydantic for CurriculumCrew's research_content_task.
+    This is the final output of CurriculumFlow, assembled from expanded modules.
+    Can also be used directly with output_pydantic for simpler crew setups.
     """
     title: str = Field(..., description="Course title based on the topic")
     description: str = Field(default="", description="Brief course description (2-3 sentences)")
-    modules: list[ModuleOutput] = Field(default_factory=list, description="5-10 ordered learning modules")
+    modules: list[ModuleOutput] = Field(default_factory=list, description="5-6 ordered learning modules")
 
 
 class QuizQuestionOutput(BaseModel):

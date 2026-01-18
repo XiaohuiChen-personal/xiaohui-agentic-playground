@@ -1,71 +1,72 @@
-# Curriculum Crew Tasks Configuration
-# These tasks work sequentially to create a complete learning curriculum.
-# Output format is aligned with the application's Pydantic schemas.
+# Curriculum Crew Tasks Configuration (Flow-Based)
+# These tasks are used by CurriculumFlow for multi-step curriculum generation.
+#
+# Note: expected_output is NOT defined here because we use output_pydantic
+# in the code. The Pydantic model defines the expected output structure.
+#
+# Flow Steps:
+# 1. create_outline_task: Curriculum Architect creates course skeleton
+# 2. expand_module_task: Content Researcher expands each module (parallel)
+# 3. Aggregation: Pure Python, no task needed
 
-plan_curriculum_task:
+# =============================================================================
+# STEP 1: Create Curriculum Outline
+# =============================================================================
+# Agent: Curriculum Architect (Gemini 3 Pro)
+# Purpose: Design high-level course structure with module titles and concept names
+# Output: CurriculumOutline Pydantic model (defined in code)
+
+create_outline_task:
   description: >
-    Design a curriculum structure for teaching: {topic}
+    Design a curriculum OUTLINE for teaching: {topic}
     
-    Learner profile:
+    Learner Profile:
     - Experience Level: {experience_level}
     - Learning Style: {learning_style}
     - Goals: {goals}
     
-    Create 5-6 modules ordered from foundational to advanced.
-  expected_output: >
-    A JSON course outline:
-    {
-      "title": "Course title",
-      "description": "Brief 1-2 sentence description",
-      "modules": [
-        {
-          "title": "Module title",
-          "description": "Brief description of module content",
-          "order": 0,
-          "estimated_minutes": 60
-        }
-      ]
-    }
+    Your Task:
+    1. Analyze the topic scope and depth
+    2. Define 5-6 modules in logical learning order (foundational → advanced)
+    3. For each module, list 3-5 concept TITLES (just names, no content)
+    4. Estimate time per module (typically 60-90 minutes each)
     
-    Requirements:
-    - 5-6 modules total (not more)
-    - Keep descriptions brief
-    - Order from foundational (0) to advanced
-  agent: curriculum_architect
+    IMPORTANT: Output only the structure, NOT detailed content. Keep it concise.
 
-research_content_task:
+# =============================================================================
+# STEP 2: Expand Single Module
+# =============================================================================
+# Agent: Content Researcher (Claude Opus 4.5)
+# Purpose: Expand one module with full concept content
+# Output: ModuleOutput Pydantic model (defined in code)
+# Note: This task runs in PARALLEL for all modules
+
+expand_module_task:
   description: >
-    Add 3-5 key concepts to each module for the course about: {topic}
+    Expand the following module with DETAILED concept content for: {topic}
     
-    Use the curriculum from the previous task. For each module, add concepts.
-    Keep descriptions SHORT (2-3 sentences per concept).
+    Course Context:
+    - Course Title: {course_title}
+    - Experience Level: {experience_level}
+    - Learning Style: {learning_style}
     
-    IMPORTANT: Output must be valid JSON. Keep total output under 8000 characters.
-  expected_output: >
-    A JSON course with concepts added:
-    {
-      "title": "Course title",
-      "description": "Brief description",
-      "modules": [
-        {
-          "title": "Module title",
-          "description": "Module description",
-          "order": 0,
-          "estimated_minutes": 60,
-          "concepts": [
-            {
-              "title": "Concept title",
-              "content": "Brief 2-3 sentence description of this concept.",
-              "order": 0
-            }
-          ]
-        }
-      ]
-    }
+    Module to Expand:
+    - Title: {module_title}
+    - Description: {module_description}
+    - Order: {module_order}
+    - Estimated Minutes: {estimated_minutes}
+    - Concept Titles to Cover: {concept_titles}
     
-    Requirements:
-    - 3-5 concepts per module (not 7)
-    - Keep content field SHORT (2-3 sentences max)
-    - Include 5-7 modules total
-    - Valid JSON only
-  agent: content_researcher
+    Your Task:
+    For each concept title listed above, create detailed content that includes:
+    1. Clear explanation of the concept (2-3 paragraphs)
+    2. Key points and takeaways
+    3. Common misconceptions to avoid
+    4. Practical applications or examples
+    
+    Adapt content to the learner's style:
+    - Visual: Include ASCII diagrams and visual representations
+    - Reading: Provide detailed written explanations
+    - Hands-on: Focus on code examples and practical exercises
+    
+    IMPORTANT: Focus on QUALITY content for THIS module only.

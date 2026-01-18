@@ -436,69 +436,135 @@ Sensei utilizes all five CrewAI memory types to provide a truly adaptive learnin
 
 #### Introduction
 
-The **Curriculum Crew** is responsible for creating comprehensive learning curricula when a user wants to learn a new topic. This crew runs once per course creation and generates a complete structure of modules and concepts.
+The **Curriculum Crew** is responsible for creating comprehensive learning curricula when a user wants to learn a new topic. This crew uses a **CrewAI Flow-based architecture** to enable parallel module expansion, ensuring comprehensive content generation while staying within LLM token limits.
+
+The crew runs once per course creation and generates a complete structure of modules and concepts through a three-step process: outline creation, parallel module expansion, and aggregation.
 
 #### Agents
 
-| Agent | Role | Responsibility |
-|-------|------|----------------|
-| 🗺️ **Curriculum Architect** | Senior curriculum designer | Plans overall course structure, defines modules, orders prerequisites |
-| 🔬 **Content Researcher** | Technical content specialist | Researches topics, defines concepts, identifies key learning points |
+| Agent | Role | Responsibility | LLM |
+|-------|------|----------------|-----|
+| 🗺️ **Curriculum Architect** | Senior curriculum designer | Plans overall course structure, defines module outlines, orders prerequisites | Gemini 3 Pro |
+| 🔬 **Content Researcher** | Technical content specialist | Expands modules with detailed concepts, learning points, and practical applications | Claude Opus 4.5 |
+
+#### Architecture: Flow-Based Design
+
+The Curriculum Crew uses CrewAI Flows to orchestrate a multi-step process:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                     CURRICULUM FLOW ARCHITECTURE                             │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  Why Flow-Based?                                                            │
+│  ─────────────────                                                          │
+│  • Token Management: Each module expanded separately (~8K tokens max)       │
+│  • Parallelism: Multiple modules expanded concurrently                      │
+│  • Reliability: Per-module failure isolation and retry                      │
+│  • Comprehensiveness: No content truncation due to output limits            │
+│                                                                              │
+│  Structured Output Models:                                                  │
+│  ─────────────────────────                                                  │
+│  • CurriculumOutline: High-level structure (Step 1 output)                  │
+│  • ModuleOutline: Module skeleton with concept titles only                  │
+│  • ModuleOutput: Fully expanded module with detailed concepts               │
+│  • CourseOutput: Complete course (Step 3 output)                            │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
 
 #### Flow Chart
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       CURRICULUM CREW FLOW                                   │
+│                         CURRICULUM CREW FLOW                                 │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  INPUT: Topic (e.g., "CUDA C GPU Programming")                              │
-│         User Preferences (experience level, goals)                          │
+│  INPUT: Topic (e.g., "Python Programming")                                  │
+│         User Preferences (experience level, learning style, time)           │
 │                                                                              │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │                                                                       │   │
-│  │                        CURRICULUM CREW                                │   │
+│  │  STEP 1: CREATE OUTLINE                                              │   │
+│  │  Agent: 🗺️ Curriculum Architect (Gemini 3 Pro)                        │   │
 │  │                                                                       │   │
-│  │  ┌─────────────────────────────────────────────────────────────┐    │   │
-│  │  │  TASK 1: Plan Curriculum Structure                          │    │   │
-│  │  │  Agent: 🗺️ Curriculum Architect                              │    │   │
-│  │  │                                                              │    │   │
-│  │  │  • Analyze topic scope and depth                            │    │   │
-│  │  │  • Consider user's experience level                         │    │   │
-│  │  │  • Define 5-10 modules with learning objectives             │    │   │
-│  │  │  • Order modules by prerequisites                           │    │   │
-│  │  │  • Estimate time per module                                 │    │   │
-│  │  │                                                              │    │   │
-│  │  │  Output: Course skeleton with modules                       │    │   │
-│  │  └──────────────────────────┬──────────────────────────────────┘    │   │
-│  │                             │                                        │   │
-│  │                             ▼                                        │   │
-│  │  ┌─────────────────────────────────────────────────────────────┐    │   │
-│  │  │  TASK 2: Research and Define Concepts                       │    │   │
-│  │  │  Agent: 🔬 Content Researcher                                │    │   │
-│  │  │                                                              │    │   │
-│  │  │  For each module:                                           │    │   │
-│  │  │  • Research key concepts (3-7 per module)                   │    │   │
-│  │  │  • Define learning points per concept                       │    │   │
-│  │  │  • Identify common misconceptions                           │    │   │
-│  │  │  • Note practical applications                              │    │   │
-│  │  │                                                              │    │   │
-│  │  │  Output: Complete course with detailed concepts             │    │   │
-│  │  └──────────────────────────┬──────────────────────────────────┘    │   │
-│  │                             │                                        │   │
-│  └─────────────────────────────┼────────────────────────────────────────┘   │
-│                                │                                            │
-│                                ▼                                            │
+│  │  • Analyze topic scope and depth                                     │   │
+│  │  • Consider user's experience level and learning style               │   │
+│  │  • Define 5-6 modules with brief descriptions                        │   │
+│  │  • List concept titles for each module (no content yet)              │   │
+│  │  • Order modules by prerequisites                                    │   │
+│  │  • Estimate time per module                                          │   │
+│  │                                                                       │   │
+│  │  Output: CurriculumOutline (lightweight, ~2-3K tokens)               │   │
+│  │          {title, description, modules: [{title, concept_titles}]}    │   │
+│  │                                                                       │   │
+│  └──────────────────────────────┬───────────────────────────────────────┘   │
+│                                 │                                            │
+│                                 ▼                                            │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │                                                                       │   │
+│  │  STEP 2: EXPAND MODULES (PARALLEL)                                   │   │
+│  │  Agent: 🔬 Content Researcher (Claude Opus 4.5)                       │   │
+│  │                                                                       │   │
+│  │  For each ModuleOutline, create an expansion task:                   │   │
+│  │                                                                       │   │
+│  │  ┌────────────┐  ┌────────────┐  ┌────────────┐  ┌────────────┐     │   │
+│  │  │  Expand    │  │  Expand    │  │  Expand    │  │  Expand    │     │   │
+│  │  │  Module 0  │  │  Module 1  │  │  Module 2  │  │  Module N  │     │   │
+│  │  │            │  │            │  │            │  │            │     │   │
+│  │  │ • Research │  │ • Research │  │ • Research │  │ • Research │     │   │
+│  │  │   concepts │  │   concepts │  │   concepts │  │   concepts │     │   │
+│  │  │ • Define   │  │ • Define   │  │ • Define   │  │ • Define   │     │   │
+│  │  │   content  │  │   content  │  │   content  │  │   content  │     │   │
+│  │  │ • Add      │  │ • Add      │  │ • Add      │  │ • Add      │     │   │
+│  │  │   examples │  │   examples │  │   examples │  │   examples │     │   │
+│  │  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘     │   │
+│  │        │               │               │               │            │   │
+│  │        └───────────────┴───────┬───────┴───────────────┘            │   │
+│  │                                │                                     │   │
+│  │               ◄── PARALLEL EXECUTION (asyncio.gather) ──►           │   │
+│  │                                                                       │   │
+│  │  Per-module token budget: ~8K (allows comprehensive content)         │   │
+│  │  Output per module: ModuleOutput with full ConceptOutput list        │   │
+│  │                                                                       │   │
+│  └──────────────────────────────┬───────────────────────────────────────┘   │
+│                                 │                                            │
+│                  ┌──────────────┴──────────────┐                            │
+│                  ▼              ▼              ▼                            │
+│           [Module 0]     [Module 1]     [Module N]                          │
+│                  │              │              │                            │
+│                  └──────────────┼──────────────┘                            │
+│                                 │                                            │
+│                                 ▼                                            │
+│  ┌──────────────────────────────────────────────────────────────────────┐   │
+│  │                                                                       │   │
+│  │  STEP 3: AGGREGATE                                                   │   │
+│  │  Agent: None (Pure Python logic)                                     │   │
+│  │                                                                       │   │
+│  │  • Collect all expanded ModuleOutput objects                         │   │
+│  │  • Sort modules by order                                             │   │
+│  │  • Validate completeness (all modules expanded successfully)         │   │
+│  │  • Combine into CourseOutput Pydantic model                          │   │
+│  │  • Convert to Course domain object                                   │   │
+│  │                                                                       │   │
+│  │  Output: CourseOutput (complete course)                              │   │
+│  │                                                                       │   │
+│  └──────────────────────────────┬───────────────────────────────────────┘   │
+│                                 │                                            │
+│                                 ▼                                            │
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │  MEMORY OPERATIONS                                                    │   │
 │  │                                                                       │   │
 │  │  Read:                                                               │   │
-│  │  • User Memory → experience level, learning goals                    │   │
+│  │  • User Memory → experience level, learning style, goals             │   │
 │  │                                                                       │   │
 │  │  Write:                                                              │   │
-│  │  • Entity Memory → course structure, modules, concepts               │   │
 │  │  • JSON Storage → courses/{course_id}.json                          │   │
 │  │  • SQLite → initialize progress record (0%)                         │   │
+│  │                                                                       │   │
+│  │  CrewAI Memory (per execution):                                      │   │
+│  │  • Short-term only (entity/long-term disabled to prevent             │   │
+│  │    cross-topic contamination)                                        │   │
 │  └──────────────────────────────────────────────────────────────────────┘   │
 │                                                                              │
 │  OUTPUT: Complete Course Structure                                          │
@@ -506,6 +572,23 @@ The **Curriculum Crew** is responsible for creating comprehensive learning curri
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+#### Token Budget Analysis
+
+| Step | Agent | Max Tokens | Purpose |
+|------|-------|------------|---------|
+| 1. Create Outline | Curriculum Architect | ~3,000 | Structure only, no detailed content |
+| 2. Expand Module (×N) | Content Researcher | ~8,000 each | Full content per module |
+| 3. Aggregate | None | N/A | Pure Python aggregation |
+
+#### Execution Time Comparison
+
+| Approach | Calculation | Estimated Time |
+|----------|-------------|----------------|
+| Sequential (old) | 1 outline + 1 big expansion | 60-90 seconds |
+| Flow with Parallel | 1 outline + N modules in parallel | **~75 seconds** |
+
+The parallel execution reduces total time from O(N) to O(1) for module expansion.
 
 ---
 

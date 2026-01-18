@@ -49,9 +49,15 @@ from sensei.models.schemas import (
 
 # LLM Output Schemas (for CrewAI output_pydantic)
 from sensei.models.schemas import (
+    # Curriculum Flow: Step 1 - Outline Models
+    ConceptOutline,
+    ModuleOutline,
+    CurriculumOutline,
+    # Curriculum Flow: Step 2 & 3 - Expanded Models
     ConceptOutput,
     ModuleOutput,
     CourseOutput,
+    # Assessment Crew Output Models
     QuizQuestionOutput,
     QuizOutput,
     QuizEvaluationOutput,
@@ -84,10 +90,14 @@ __all__ = [
     # Additional
     "ConceptLesson",
     "LearningStats",
-    # LLM Output Schemas
+    # LLM Output Schemas - Curriculum Flow
+    "ConceptOutline",
+    "ModuleOutline",
+    "CurriculumOutline",
     "ConceptOutput",
     "ModuleOutput",
     "CourseOutput",
+    # LLM Output Schemas - Assessment Crew
     "QuizQuestionOutput",
     "QuizOutput",
     "QuizEvaluationOutput",
