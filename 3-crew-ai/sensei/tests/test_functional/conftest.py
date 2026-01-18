@@ -6,6 +6,10 @@ Functional tests call actual LLM APIs and are:
 - Costly (incur token costs)
 
 These tests should be run manually or in pre-release, not in CI.
+
+LangSmith Integration:
+    If LANGSMITH_API_KEY is set, traces will be sent to LangSmith
+    for observability. Set LANGSMITH_PROJECT to organize traces.
 """
 
 import os
@@ -15,8 +19,9 @@ import pytest
 from sensei.utils.constants import load_environment
 
 
-# Load environment variables
-load_environment()
+# Load environment variables AND initialize LangSmith tracing
+# This must happen BEFORE any CrewAI imports
+load_environment(init_tracing=True)
 
 
 def pytest_configure(config):

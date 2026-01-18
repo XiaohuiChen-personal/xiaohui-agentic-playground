@@ -10,6 +10,11 @@ dependencies = [
     "streamlit>=1.41.0",
     "pydantic>=2.10.0",
     "openai>=1.59.0",
+    # LangSmith tracing integration
+    "langsmith>=0.2.0",
+    "openinference-instrumentation-crewai>=0.1.0",
+    "openinference-instrumentation-openai>=0.1.0",
+    "opentelemetry-sdk>=1.20.0",
 ]
 
 [project.optional-dependencies]

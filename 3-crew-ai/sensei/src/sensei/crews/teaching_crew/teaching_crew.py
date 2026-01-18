@@ -159,6 +159,8 @@ class TeachingCrew:
             verbose=True,
             memory=True,
             embedder=get_openai_embedder_config(),
+            # Enable tracing for debugging and monitoring
+            tracing=True,
         )
     
     # ==================== PUBLIC METHODS ====================

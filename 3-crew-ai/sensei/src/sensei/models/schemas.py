@@ -520,6 +520,83 @@ class Progress(BaseModel):
 
 
 # =============================================================================
+# LLM Output Schemas (for CrewAI output_pydantic)
+# =============================================================================
+# These schemas are used for CrewAI's structured output feature.
+# They don't include auto-generated fields like id, created_at, etc.
+# After receiving the LLM output, the crew converts these to full models.
+
+class ConceptOutput(BaseModel):
+    """LLM output schema for a concept (without auto-generated fields)."""
+    title: str = Field(..., description="Concept title")
+    content: str = Field(default="", description="Markdown content with overview, key points, misconceptions, applications")
+    order: int = Field(default=0, ge=0, description="Order within the module (0-based)")
+
+
+class ModuleOutput(BaseModel):
+    """LLM output schema for a module (without auto-generated fields)."""
+    title: str = Field(..., description="Module title")
+    description: str = Field(default="", description="Module description with learning objectives")
+    order: int = Field(default=0, ge=0, description="Order within the course (0-based)")
+    estimated_minutes: int = Field(default=60, ge=1, description="Estimated time (60-240 minutes)")
+    concepts: list[ConceptOutput] = Field(default_factory=list, description="3-7 concepts per module")
+
+
+class CourseOutput(BaseModel):
+    """LLM output schema for a course (without auto-generated fields).
+    
+    Used as output_pydantic for CurriculumCrew's research_content_task.
+    """
+    title: str = Field(..., description="Course title based on the topic")
+    description: str = Field(default="", description="Brief course description (2-3 sentences)")
+    modules: list[ModuleOutput] = Field(default_factory=list, description="5-10 ordered learning modules")
+
+
+class QuizQuestionOutput(BaseModel):
+    """LLM output schema for a quiz question (without auto-generated fields)."""
+    question: str = Field(..., description="Clear question text")
+    question_type: str = Field(
+        default="multiple_choice",
+        description="One of: multiple_choice, true_false, code, open_ended"
+    )
+    options: list[str] = Field(default_factory=list, description="Answer options (for MC/TF)")
+    correct_answer: str = Field(..., description="The correct answer")
+    explanation: str = Field(default="", description="Educational explanation of the correct answer")
+    concept_id: str = Field(default="", description="Related concept ID")
+    difficulty: int = Field(default=2, ge=1, le=5, description="Difficulty 1-5")
+
+
+class QuizOutput(BaseModel):
+    """LLM output schema for a quiz (without auto-generated fields).
+    
+    Used as output_pydantic for AssessmentCrew's generate_quiz_task.
+    """
+    questions: list[QuizQuestionOutput] = Field(
+        default_factory=list,
+        description="5-8 quiz questions covering module concepts"
+    )
+
+
+class QuizEvaluationOutput(BaseModel):
+    """LLM output schema for quiz evaluation.
+    
+    Used as output_pydantic for AssessmentCrew's evaluate_quiz_task.
+    """
+    score: float = Field(..., ge=0.0, le=1.0, description="Score as decimal 0-1")
+    passed: bool = Field(..., description="Whether the learner passed (80% threshold)")
+    correct_count: int = Field(..., ge=0, description="Number of correct answers")
+    total_questions: int = Field(..., ge=0, description="Total number of questions")
+    weak_concepts: list[str] = Field(default_factory=list, description="Concept IDs needing review")
+    feedback: str = Field(default="", description="Encouraging, personalized feedback")
+    detailed_analysis: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Analysis with strengths, areas_for_improvement, patterns_noticed"
+    )
+    recommendation: str = Field(default="proceed", description="One of: proceed, review")
+    next_steps: str = Field(default="", description="What the learner should do next")
+
+
+# =============================================================================
 # Lesson Content Schema (for Teaching Crew output)
 # =============================================================================
 

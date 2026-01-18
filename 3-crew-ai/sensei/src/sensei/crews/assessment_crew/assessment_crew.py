@@ -9,12 +9,16 @@ with two independent execution paths:
 Each method creates a focused mini-crew with just the relevant agent
 and task, sharing the same configuration and memory settings.
 
+Structured Output:
+    This crew uses CrewAI's output_pydantic feature for reliable structured output.
+    - generate_quiz_task outputs QuizOutput
+    - evaluate_quiz_task outputs QuizEvaluationOutput
+
 Note: This crew does NOT use @CrewBase because it needs dynamic task
 selection (only one agent/task per call). @CrewBase expects all agents
 and tasks to be used together, which doesn't fit this pattern.
 """
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -22,9 +26,10 @@ import yaml
 from crewai import Agent, Crew, Process, Task
 
 from sensei.models.schemas import (
-    AnswerResult,
     Module,
     Quiz,
+    QuizEvaluationOutput,
+    QuizOutput,
     QuizQuestion,
     QuizResult,
     UserPreferences,
@@ -119,7 +124,7 @@ class AssessmentCrew:
     # ==================== TASKS ====================
     
     def _create_generate_quiz_task(self, agent: Agent) -> Task:
-        """Create the generate quiz task.
+        """Create the generate quiz task with structured output.
         
         Args:
             agent: The agent to assign this task to.
@@ -127,10 +132,11 @@ class AssessmentCrew:
         return Task(
             config=self._tasks_config["generate_quiz_task"],
             agent=agent,
+            output_pydantic=QuizOutput,  # Structured output!
         )
     
     def _create_evaluate_quiz_task(self, agent: Agent) -> Task:
-        """Create the evaluate quiz task.
+        """Create the evaluate quiz task with structured output.
         
         Args:
             agent: The agent to assign this task to.
@@ -138,6 +144,7 @@ class AssessmentCrew:
         return Task(
             config=self._tasks_config["evaluate_quiz_task"],
             agent=agent,
+            output_pydantic=QuizEvaluationOutput,  # Structured output!
         )
     
     # ==================== CREW CREATION ====================
@@ -162,6 +169,8 @@ class AssessmentCrew:
             verbose=True,
             memory=True,
             embedder=get_openai_embedder_config(),
+            # Enable tracing for debugging and monitoring
+            tracing=True,
         )
     
     # ==================== HELPER METHODS ====================
@@ -254,43 +263,21 @@ class AssessmentCrew:
         
         return "\n".join(lines)
     
-    def _parse_quiz_response(self, response: str, module: Module) -> Quiz:
-        """Parse the LLM's quiz response into a Quiz object.
+    def _output_to_quiz(self, output: QuizOutput, module: Module) -> Quiz:
+        """Convert QuizOutput (LLM output) to a full Quiz object.
         
         Args:
-            response: The raw response from the Quiz Designer.
+            output: The QuizOutput from the LLM.
             module: The module being assessed.
-            
+        
         Returns:
-            A Quiz object with the parsed questions.
-            
-        Raises:
-            ValueError: If the response cannot be parsed.
+            A full Quiz object with auto-generated fields.
         """
-        # Try to extract JSON from the response
-        try:
-            # Look for JSON in the response (might be wrapped in markdown)
-            json_start = response.find("{")
-            json_end = response.rfind("}") + 1
-            
-            if json_start == -1 or json_end == 0:
-                raise ValueError("No JSON found in response")
-            
-            json_str = response[json_start:json_end]
-            data = json.loads(json_str)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Failed to parse quiz JSON: {e}") from e
-        
-        # Extract questions
-        questions_data = data.get("questions", [])
-        if not questions_data:
-            raise ValueError("No questions found in response")
-        
         questions = []
-        for q_data in questions_data:
-            # Map question type
-            q_type_str = q_data.get("question_type", "multiple_choice")
+        for q_output in output.questions:
+            # Map question type string to enum
             q_type = QuestionType.MULTIPLE_CHOICE
+            q_type_str = q_output.question_type.lower()
             if q_type_str == "true_false":
                 q_type = QuestionType.TRUE_FALSE
             elif q_type_str == "code":
@@ -299,13 +286,14 @@ class AssessmentCrew:
                 q_type = QuestionType.OPEN_ENDED
             
             question = QuizQuestion(
-                question=q_data.get("question", ""),
+                question=q_output.question,
                 question_type=q_type,
-                options=q_data.get("options", []),
-                correct_answer=q_data.get("correct_answer", ""),
-                explanation=q_data.get("explanation", ""),
-                concept_id=q_data.get("concept_id", ""),
-                difficulty=q_data.get("difficulty", 2),
+                options=q_output.options,
+                correct_answer=q_output.correct_answer,
+                explanation=q_output.explanation,
+                concept_id=q_output.concept_id,
+                difficulty=q_output.difficulty,
+                # id is auto-generated
             )
             questions.append(question)
         
@@ -313,64 +301,34 @@ class AssessmentCrew:
             module_id=module.id,
             module_title=module.title,
             questions=questions,
+            # id, created_at are auto-generated
         )
     
-    def _parse_evaluation_response(
+    def _output_to_quiz_result(
         self,
-        response: str,
+        output: QuizEvaluationOutput,
         quiz: Quiz,
         answers: dict[str, str],
-        course_id: str = "",
+        course_id: str,
     ) -> QuizResult:
-        """Parse the LLM's evaluation response into a QuizResult object.
+        """Convert QuizEvaluationOutput (LLM output) to a full QuizResult object.
         
         Args:
-            response: The raw response from the Performance Analyst.
+            output: The QuizEvaluationOutput from the LLM.
             quiz: The quiz that was evaluated.
             answers: Dictionary mapping question_id to user's answer.
-            course_id: The course ID for the result.
-            
+            course_id: The course ID for tracking.
+        
         Returns:
-            A QuizResult object with the parsed evaluation.
-            
-        Raises:
-            ValueError: If the response cannot be parsed.
+            A full QuizResult object.
         """
-        # Calculate actual score from answers
-        correct_count = 0
-        for question in quiz.questions:
-            user_answer = answers.get(question.id, "")
-            if user_answer == question.correct_answer:
-                correct_count += 1
+        # Build feedback with next_steps if provided
+        feedback = output.feedback
+        if output.next_steps:
+            feedback = f"{feedback}\n\n**Next Steps:** {output.next_steps}"
         
-        total_questions = len(quiz.questions)
-        actual_score = correct_count / total_questions if total_questions > 0 else 0.0
-        passed = actual_score >= 0.8
-        
-        # Try to extract JSON from the response for feedback
-        feedback = "Quiz completed."
-        weak_concepts: list[str] = []
-        
-        try:
-            json_start = response.find("{")
-            json_end = response.rfind("}") + 1
-            
-            if json_start != -1 and json_end > 0:
-                json_str = response[json_start:json_end]
-                data = json.loads(json_str)
-                
-                feedback = data.get("feedback", feedback)
-                weak_concepts = data.get("weak_concepts", [])
-                
-                # Add next_steps to feedback if available
-                next_steps = data.get("next_steps", "")
-                if next_steps:
-                    feedback = f"{feedback}\n\n**Next Steps:** {next_steps}"
-        except (json.JSONDecodeError, ValueError):
-            # If we can't parse JSON, use the raw response as feedback
-            feedback = response
-        
-        # If no weak concepts from LLM, calculate from wrong answers
+        # Use weak_concepts from LLM, or calculate from wrong answers
+        weak_concepts = output.weak_concepts
         if not weak_concepts:
             for question in quiz.questions:
                 user_answer = answers.get(question.id, "")
@@ -383,12 +341,13 @@ class AssessmentCrew:
             course_id=course_id,
             module_id=quiz.module_id,
             module_title=quiz.module_title,
-            score=actual_score,
-            correct_count=correct_count,
-            total_questions=total_questions,
+            score=output.score,
+            correct_count=output.correct_count,
+            total_questions=output.total_questions,
             weak_concepts=weak_concepts,
             feedback=feedback,
-            passed=passed,
+            passed=output.passed,
+            # completed_at is auto-generated
         )
     
     # ==================== PUBLIC METHODS ====================
@@ -456,8 +415,15 @@ class AssessmentCrew:
         # Execute the crew
         result = crew.kickoff(inputs=inputs)
         
-        # Parse the response into a Quiz object
-        return self._parse_quiz_response(result.raw, module)
+        # The result.pydantic contains our QuizOutput model
+        if result.pydantic:
+            return self._output_to_quiz(result.pydantic, module)
+        
+        # Fallback: shouldn't happen with output_pydantic
+        raise RuntimeError(
+            f"Failed to get structured output from Quiz Designer. "
+            f"Raw output: {result.raw[:500] if result.raw else 'None'}..."
+        )
     
     def evaluate_answers(
         self,
@@ -537,5 +503,12 @@ class AssessmentCrew:
         # Execute the crew
         result = crew.kickoff(inputs=inputs)
         
-        # Parse the response into a QuizResult object
-        return self._parse_evaluation_response(result.raw, quiz, answers, course_id)
+        # The result.pydantic contains our QuizEvaluationOutput model
+        if result.pydantic:
+            return self._output_to_quiz_result(result.pydantic, quiz, answers, course_id)
+        
+        # Fallback: shouldn't happen with output_pydantic
+        raise RuntimeError(
+            f"Failed to get structured output from Performance Analyst. "
+            f"Raw output: {result.raw[:500] if result.raw else 'None'}..."
+        )

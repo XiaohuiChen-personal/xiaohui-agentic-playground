@@ -4,96 +4,68 @@
 
 plan_curriculum_task:
   description: >
-    Design a comprehensive curriculum structure for teaching: {topic}
+    Design a curriculum structure for teaching: {topic}
     
-    Consider the learner's profile:
+    Learner profile:
     - Experience Level: {experience_level}
     - Learning Style: {learning_style}
-    - Learning Goals: {goals}
+    - Goals: {goals}
     
-    Your task:
-    1. Analyze the full scope of the topic
-    2. Break it down into 5-10 logical learning modules
-    3. Order modules by prerequisite relationships (foundational → advanced)
-    4. Define clear learning objectives for each module
-    5. Estimate realistic time per module (in minutes, typically 60-240 minutes each)
-    
-    Adapt the curriculum depth and pace based on the learner's experience level:
-    - Beginner: More foundational modules, slower pace, extra context
-    - Intermediate: Balanced approach, assume basic knowledge
-    - Advanced: Focus on advanced topics, faster pace, deeper content
+    Create 5-6 modules ordered from foundational to advanced.
   expected_output: >
-    A structured JSON course outline with the following format:
+    A JSON course outline:
     {
-      "title": "Course title based on the topic",
-      "description": "Brief course description (2-3 sentences)",
+      "title": "Course title",
+      "description": "Brief 1-2 sentence description",
       "modules": [
         {
           "title": "Module title",
-          "description": "What this module covers and key learning objectives",
+          "description": "Brief description of module content",
           "order": 0,
-          "estimated_minutes": <number between 60-240>
-        },
-        ...
+          "estimated_minutes": 60
+        }
       ]
     }
     
-    Important:
-    - Modules must be ordered from foundational to advanced (order starts at 0)
-    - Include 5-10 modules total
-    - estimated_minutes should be realistic (60-240 minutes per module)
-    - Include learning objectives in each module's description
+    Requirements:
+    - 5-6 modules total (not more)
+    - Keep descriptions brief
+    - Order from foundational (0) to advanced
   agent: curriculum_architect
 
 research_content_task:
   description: >
-    Using the curriculum structure provided, research and define the key concepts
-    for each module in the course about: {topic}
+    Add 3-5 key concepts to each module for the course about: {topic}
     
-    Curriculum structure to expand:
-    {curriculum_structure}
+    Use the curriculum from the previous task. For each module, add concepts.
+    Keep descriptions SHORT (2-3 sentences per concept).
     
-    For each module, you must:
-    1. Identify 3-7 key concepts that cover the module's learning objectives
-    2. Define clear learning points for each concept
-    3. Note common misconceptions learners face
-    4. Include practical applications and real-world examples
-    5. Order concepts from foundational to advanced within each module
-    
-    Each concept should be learnable in approximately 10-20 minutes.
-    Ensure concepts build upon each other logically within the module.
+    IMPORTANT: Output must be valid JSON. Keep total output under 8000 characters.
   expected_output: >
-    A complete JSON course structure with detailed concepts:
+    A JSON course with concepts added:
     {
       "title": "Course title",
-      "description": "Course description",
+      "description": "Brief description",
       "modules": [
         {
           "title": "Module title",
-          "description": "Module description with learning objectives",
+          "description": "Module description",
           "order": 0,
-          "estimated_minutes": <number>,
+          "estimated_minutes": 60,
           "concepts": [
             {
               "title": "Concept title",
-              "content": "A comprehensive description that includes:\n\n**Overview:**\nBrief description of what will be learned.\n\n**Key Learning Points:**\n- Point 1\n- Point 2\n- Point 3\n\n**Common Misconceptions:**\n- Misconception 1 and why it's wrong\n\n**Practical Applications:**\n- Real-world application example",
+              "content": "Brief 2-3 sentence description of this concept.",
               "order": 0
-            },
-            ...
+            }
           ]
-        },
-        ...
+        }
       ]
     }
     
-    Important:
-    - Each module should have 3-7 concepts
-    - Concepts must be ordered within each module (order starts at 0)
-    - The "content" field must be a markdown-formatted string containing:
-      * Overview of the concept
-      * Key learning points as a bulleted list
-      * Common misconceptions learners face
-      * Practical applications and examples
-    - Concepts should be specific and well-defined
-    - Do NOT include "id" fields - they will be auto-generated
+    Requirements:
+    - 3-5 concepts per module (not 7)
+    - Keep content field SHORT (2-3 sentences max)
+    - Include 5-7 modules total
+    - Valid JSON only
   agent: content_researcher

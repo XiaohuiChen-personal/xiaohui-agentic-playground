@@ -47,6 +47,16 @@ from sensei.models.schemas import (
     LearningStats,
 )
 
+# LLM Output Schemas (for CrewAI output_pydantic)
+from sensei.models.schemas import (
+    ConceptOutput,
+    ModuleOutput,
+    CourseOutput,
+    QuizQuestionOutput,
+    QuizOutput,
+    QuizEvaluationOutput,
+)
+
 # Helper function
 from sensei.models.schemas import generate_id
 
@@ -74,6 +84,13 @@ __all__ = [
     # Additional
     "ConceptLesson",
     "LearningStats",
+    # LLM Output Schemas
+    "ConceptOutput",
+    "ModuleOutput",
+    "CourseOutput",
+    "QuizQuestionOutput",
+    "QuizOutput",
+    "QuizEvaluationOutput",
     # Helpers
     "generate_id",
 ]

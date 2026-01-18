@@ -1,6 +1,8 @@
 """Application-wide constants for Sensei.
 
-This module also handles environment variable loading for API keys.
+This module also handles environment variable loading for API keys
+and LangSmith tracing initialization.
+
 Call `load_environment()` at application startup before using any crews.
 """
 
@@ -15,14 +17,17 @@ WORKSPACE_ROOT = PROJECT_ROOT.parent.parent  # xiaohui-agentic-playground/
 DATA_DIR = PROJECT_ROOT / "data"
 
 
-def load_environment() -> bool:
-    """Load environment variables from .env file.
+def load_environment(init_tracing: bool = True) -> bool:
+    """Load environment variables from .env file and optionally initialize tracing.
     
     Looks for .env file in the workspace root directory
     (xiaohui-agentic-playground/), which is shared across all projects.
     
     This function should be called at application startup, before
     any CrewAI crews are instantiated.
+    
+    Args:
+        init_tracing: If True, initialize LangSmith tracing after loading env vars.
     
     Returns:
         True if .env file was found and loaded, False otherwise.
@@ -32,31 +37,45 @@ def load_environment() -> bool:
         - ANTHROPIC_API_KEY: For Claude models (Content Researcher)
         - OPENAI_API_KEY: For OpenAI models (future crews)
     
+    Optional environment variables for LangSmith tracing:
+        - LANGSMITH_API_KEY: Your LangSmith API key
+        - LANGSMITH_PROJECT: Project name (e.g., "project-sensei")
+        - LANGSMITH_TRACING: Set to "true" to enable
+    
     Example:
         ```python
         from sensei.utils.constants import load_environment
         
-        # Call at app startup
+        # Call at app startup (also initializes tracing if configured)
         load_environment()
         
-        # Now crews can be instantiated
+        # Now crews can be instantiated with LangSmith tracing
         from sensei.crews import CurriculumCrew
         crew = CurriculumCrew()
         ```
     """
+    env_loaded = False
     env_path = WORKSPACE_ROOT / ".env"
     
     if env_path.exists():
         load_dotenv(env_path)
-        return True
+        env_loaded = True
+    else:
+        # Also try project-specific .env as fallback
+        project_env_path = PROJECT_ROOT / ".env"
+        if project_env_path.exists():
+            load_dotenv(project_env_path)
+            env_loaded = True
     
-    # Also try project-specific .env as fallback
-    project_env_path = PROJECT_ROOT / ".env"
-    if project_env_path.exists():
-        load_dotenv(project_env_path)
-        return True
+    # Initialize LangSmith tracing if requested and env is loaded
+    if init_tracing and env_loaded:
+        try:
+            from sensei.utils.tracing import setup_tracing
+            setup_tracing()
+        except ImportError:
+            pass  # Tracing dependencies not installed, skip silently
     
-    return False
+    return env_loaded
 
 
 def get_api_key(provider: str) -> str | None:

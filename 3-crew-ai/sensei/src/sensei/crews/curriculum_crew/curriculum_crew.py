@@ -12,16 +12,24 @@ Memory Usage:
     
     Memory is enabled via `memory=True` in the Crew configuration.
     Embeddings use OpenAI's text-embedding-3-small for semantic search.
-"""
 
-import json
-from typing import Any
+Structured Output:
+    This crew uses CrewAI's output_pydantic feature for reliable structured output.
+    The final task outputs a CourseOutput Pydantic model, which is then converted
+    to the full Course model with auto-generated fields (id, created_at, etc.).
+"""
 
 from crewai import Agent, Crew, Process, Task
 from crewai.agents.agent_builder.base_agent import BaseAgent
 from crewai.project import CrewBase, agent, crew, task
 
-from sensei.models.schemas import Concept, Course, Module, UserPreferences
+from sensei.models.schemas import (
+    Concept,
+    Course,
+    CourseOutput,
+    Module,
+    UserPreferences,
+)
 from sensei.storage.memory_manager import get_openai_embedder_config
 
 
@@ -102,44 +110,65 @@ class CurriculumCrew:
     def research_content_task(self) -> Task:
         """Task to research and define concepts.
         
-        Input: Course skeleton from plan_curriculum_task
-        Output: Complete course with detailed concepts
+        Input: Course skeleton from plan_curriculum_task (via context)
+        Output: Complete course with detailed concepts (as CourseOutput Pydantic model)
+        
+        Uses output_pydantic for reliable structured output from the LLM.
         """
         return Task(
             config=self.tasks_config["research_content_task"],  # type: ignore[index]
+            context=[self.plan_curriculum_task()],  # Receive output from first task
+            output_pydantic=CourseOutput,  # Structured output!
         )
     
     # ==================== CREW ====================
     
     @crew
     def crew(self) -> Crew:
-        """Creates the Curriculum Crew with memory enabled.
+        """Creates the Curriculum Crew with selective memory.
         
         The crew runs sequentially:
         1. Curriculum Architect plans the structure
         2. Content Researcher fills in concept details
         
         Memory Configuration:
-            - memory=True: Enables CrewAI's built-in memory system
-            - Short-term: Context passes automatically between agents
-            - Long-term: Patterns learned across curriculum generations
-            - Entity: Facts about topics extracted and stored
+            - Short-term: ENABLED - passes context between agents within this run
+            - Long-term: DISABLED - prevents cross-session pattern learning that could
+              cause topic drift (e.g., CUDA content appearing in Python courses)
+            - Entity: DISABLED - prevents entity extraction from previous runs
+              contaminating new curriculum generation
             - Embedder: OpenAI text-embedding-3-small for semantic search
         
-        Benefits of Memory:
-            - Architect's output is automatically available to Researcher
-            - Crew learns which curriculum structures work best
-            - Better personalization based on remembered user patterns
+        Why Disable Long-term and Entity Memory:
+            Curriculum generation should be independent for each topic.
+            Entity memory was causing contamination where entities from
+            previous courses (e.g., CUDA) would influence new generations.
         """
         return Crew(
             agents=self.agents,  # Automatically created by @agent decorators
             tasks=self.tasks,    # Automatically created by @task decorators
             process=Process.sequential,
             verbose=True,
-            # Enable CrewAI memory system
+            # Enable memory with selective configuration
             memory=True,
+            memory_config={
+                "provider": "mem0",  # Default provider
+                "config": {
+                    "short_term": {
+                        "enabled": True,  # Keep: passes context between agents
+                    },
+                    "long_term": {
+                        "enabled": False,  # Disable: prevents topic drift
+                    },
+                    "entity": {
+                        "enabled": False,  # Disable: prevents contamination
+                    },
+                },
+            },
             # Configure embeddings for semantic memory search
             embedder=get_openai_embedder_config(),
+            # Enable tracing for debugging and monitoring
+            tracing=True,
         )
     
     # ==================== PUBLIC METHODS ====================
@@ -183,100 +212,59 @@ class CurriculumCrew:
         # Execute the crew
         result = self.crew().kickoff(inputs=inputs)
         
-        # Parse the result into a Course object
-        return self._parse_crew_output(result.raw, topic)
-    
-    def _parse_crew_output(self, raw_output: str, topic: str) -> Course:
-        """Parse the crew's raw output into a Course object.
+        # The result.pydantic contains our CourseOutput model
+        # Convert it to a full Course object with auto-generated fields
+        if result.pydantic:
+            return self._output_to_course(result.pydantic)
         
-        The crew outputs JSON, which we parse and convert to our
-        Pydantic models.
+        # Fallback: try to parse raw output (shouldn't happen with output_pydantic)
+        raise RuntimeError(
+            f"Failed to get structured output from crew. "
+            f"Raw output: {result.raw[:500] if result.raw else 'None'}..."
+        )
+    
+    def _output_to_course(self, output: CourseOutput) -> Course:
+        """Convert a CourseOutput (LLM output) to a full Course object.
+        
+        This adds auto-generated fields (id, created_at, status, mastery, etc.)
+        to the LLM output.
         
         Args:
-            raw_output: The raw string output from the crew.
-            topic: The original topic (for fallback title).
+            output: The CourseOutput from the LLM.
         
         Returns:
-            A Course object.
-        
-        Raises:
-            RuntimeError: If parsing fails.
+            A full Course object with all fields populated.
         """
-        try:
-            # Extract JSON from the output
-            # The output might have text before/after the JSON
-            json_str = self._extract_json(raw_output)
-            data = json.loads(json_str)
-            
-            # Convert to Course object
-            return self._dict_to_course(data, topic)
-            
-        except (json.JSONDecodeError, KeyError, TypeError) as e:
-            raise RuntimeError(
-                f"Failed to parse crew output: {e}\n"
-                f"Raw output: {raw_output[:500]}..."
-            ) from e
-    
-    def _extract_json(self, text: str) -> str:
-        """Extract JSON object from text that may contain other content.
-        
-        Finds the outermost JSON object in the text.
-        
-        Args:
-            text: Text potentially containing JSON.
-        
-        Returns:
-            The extracted JSON string.
-        
-        Raises:
-            ValueError: If no JSON object is found.
-        """
-        # Find the first { and last }
-        start = text.find("{")
-        end = text.rfind("}")
-        
-        if start == -1 or end == -1 or start >= end:
-            raise ValueError("No JSON object found in output")
-        
-        return text[start:end + 1]
-    
-    def _dict_to_course(self, data: dict[str, Any], fallback_topic: str) -> Course:
-        """Convert a dictionary to a Course object.
-        
-        Args:
-            data: Dictionary from parsed JSON.
-            fallback_topic: Topic to use if title is missing.
-        
-        Returns:
-            A Course object with modules and concepts.
-        """
-        # Build modules
+        # Build modules with concepts
         modules = []
-        for module_data in data.get("modules", []):
+        for module_output in output.modules:
             # Build concepts for this module
             concepts = []
-            for concept_data in module_data.get("concepts", []):
+            for concept_output in module_output.concepts:
                 concept = Concept(
-                    title=concept_data.get("title", "Untitled Concept"),
-                    content=concept_data.get("content", ""),
-                    order=concept_data.get("order", len(concepts)),
+                    title=concept_output.title,
+                    content=concept_output.content,
+                    order=concept_output.order,
+                    # id, status, mastery, questions_asked are auto-generated
                 )
                 concepts.append(concept)
             
             module = Module(
-                title=module_data.get("title", f"Module {len(modules) + 1}"),
-                description=module_data.get("description", ""),
+                title=module_output.title,
+                description=module_output.description,
                 concepts=concepts,
-                order=module_data.get("order", len(modules)),
-                estimated_minutes=module_data.get("estimated_minutes", 60),
+                order=module_output.order,
+                estimated_minutes=module_output.estimated_minutes,
+                # id is auto-generated
             )
             modules.append(module)
         
         # Build course
         course = Course(
-            title=data.get("title", fallback_topic),
-            description=data.get("description", f"A course about {fallback_topic}"),
+            title=output.title,
+            description=output.description,
             modules=modules,
+            # id, created_at are auto-generated
         )
         
         return course
