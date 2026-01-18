@@ -1,0 +1,295 @@
+"""Concept viewer component for Sensei.
+
+This module provides display for lesson content including:
+- Markdown rendering
+- Code syntax highlighting
+- Key takeaways section
+- Navigation controls
+"""
+
+from typing import Any, Callable
+
+import streamlit as st
+
+
+def render_concept(
+    title: str,
+    content: str,
+    key_takeaways: list[str] | None = None,
+    code_examples: list[str] | None = None,
+) -> None:
+    """Render concept content with markdown and code highlighting.
+    
+    Args:
+        title: The concept title.
+        content: Main lesson content in markdown format.
+        key_takeaways: Optional list of key points to highlight.
+        code_examples: Optional list of code examples as strings.
+    
+    Example:
+        ```python
+        render_concept(
+            title="Thread Blocks",
+            content="A **thread block** is a group of threads...",
+            key_takeaways=["Max 1024 threads per block", "Shared memory access"],
+            code_examples=["# Example\\nprint('Hello, World!')"],
+        )
+        ```
+    """
+    # Concept title
+    st.markdown(f"## {title}")
+    
+    # Main content (markdown)
+    if content:
+        st.markdown(content)
+    else:
+        _render_empty_content()
+    
+    # Code examples (if provided separately)
+    if code_examples:
+        for code in code_examples:
+            st.code(code, language="python")
+    
+    # Key takeaways
+    if key_takeaways:
+        st.markdown("---")
+        _render_key_takeaways(key_takeaways)
+
+
+def render_concept_with_navigation(
+    title: str,
+    content: str,
+    concept_idx: int,
+    total_concepts: int,
+    module_title: str | None = None,
+    on_previous: Callable[[], None] | None = None,
+    on_next: Callable[[], None] | None = None,
+    can_go_previous: bool = True,
+    can_go_next: bool = True,
+    key_takeaways: list[str] | None = None,
+    code_examples: list[str] | None = None,
+) -> None:
+    """Render concept with previous/next navigation controls.
+    
+    Args:
+        title: The concept title.
+        content: Main lesson content in markdown.
+        concept_idx: Current concept index (0-based).
+        total_concepts: Total number of concepts in module.
+        module_title: Optional module title to display.
+        on_previous: Callback when Previous button is clicked.
+        on_next: Callback when Next button is clicked.
+        can_go_previous: Whether previous navigation is available.
+        can_go_next: Whether next navigation is available.
+        key_takeaways: Optional list of key points.
+        code_examples: Optional list of code examples as strings.
+    """
+    # Module context
+    if module_title:
+        st.caption(f"📚 {module_title}")
+    
+    # Progress indicator
+    _render_progress_dots(concept_idx, total_concepts)
+    
+    st.markdown("---")
+    
+    # Main concept content
+    render_concept(title, content, key_takeaways, code_examples)
+    
+    st.markdown("---")
+    
+    # Navigation buttons
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col1:
+        if can_go_previous and concept_idx > 0:
+            if st.button("◀ Previous", key="prev_concept", use_container_width=True):
+                if on_previous:
+                    on_previous()
+        else:
+            st.empty()
+    
+    with col2:
+        st.markdown(
+            f"<p style='text-align: center; color: #6c757d;'>Concept {concept_idx + 1} of {total_concepts}</p>",
+            unsafe_allow_html=True,
+        )
+    
+    with col3:
+        if can_go_next and concept_idx < total_concepts - 1:
+            if st.button("Next ▶", key="next_concept", use_container_width=True, type="primary"):
+                if on_next:
+                    on_next()
+        elif concept_idx >= total_concepts - 1:
+            # Last concept - show module complete indicator
+            st.success("✓ Module Complete!")
+        else:
+            st.empty()
+
+
+def render_lesson_header(
+    course_title: str,
+    module_title: str,
+    module_idx: int,
+    total_modules: int,
+) -> None:
+    """Render the lesson page header with course and module info.
+    
+    Args:
+        course_title: The course name.
+        module_title: The current module name.
+        module_idx: Current module index (0-based).
+        total_modules: Total number of modules in course.
+    """
+    st.markdown(f"# 📚 {course_title}")
+    st.markdown(f"**{module_title}** (Module {module_idx + 1} of {total_modules})")
+
+
+def render_loading_state(message: str = "Generating lesson content...") -> None:
+    """Render a loading state while content is being generated.
+    
+    Args:
+        message: Loading message to display.
+    """
+    with st.container():
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            st.markdown(
+                f"""
+                <div style="
+                    text-align: center;
+                    padding: 3rem;
+                    background: #f8f9fa;
+                    border-radius: 10px;
+                    margin: 2rem 0;
+                ">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🥋</div>
+                    <p style="color: #6c757d;">{message}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            st.spinner("Please wait...")
+
+
+def _render_progress_dots(current: int, total: int) -> None:
+    """Render progress indicator as filled/empty dots.
+    
+    Args:
+        current: Current position (0-based).
+        total: Total items.
+    """
+    dots = []
+    for i in range(total):
+        if i < current:
+            dots.append("●")  # Completed
+        elif i == current:
+            dots.append("◉")  # Current
+        else:
+            dots.append("○")  # Not reached
+    
+    dots_str = " ".join(dots)
+    st.markdown(
+        f"<p style='text-align: center; letter-spacing: 0.3rem; color: #007bff;'>{dots_str}</p>",
+        unsafe_allow_html=True,
+    )
+
+
+def _render_key_takeaways(takeaways: list[str]) -> None:
+    """Render the key takeaways section.
+    
+    Args:
+        takeaways: List of key points.
+    """
+    st.markdown(
+        """
+        <div style="
+            background: linear-gradient(135deg, #e8f4fd 0%, #f0f7ff 100%);
+            border-left: 4px solid #007bff;
+            padding: 1rem 1.5rem;
+            border-radius: 0 8px 8px 0;
+            margin: 1rem 0;
+        ">
+            <strong style="color: #0056b3;">💡 Key Takeaways</strong>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    
+    for takeaway in takeaways:
+        st.markdown(f"- {takeaway}")
+
+
+def _render_empty_content() -> None:
+    """Render placeholder when content is empty."""
+    st.markdown(
+        """
+        <div style="
+            text-align: center;
+            padding: 2rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            color: #6c757d;
+        ">
+            <span style="font-size: 2rem;">📝</span>
+            <p>Content is being generated...</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_concept_card(
+    concept: dict[str, Any],
+    on_select: Callable[[str], None] | None = None,
+    is_current: bool = False,
+    is_completed: bool = False,
+) -> None:
+    """Render a concept as a clickable card.
+    
+    Used in module overview to show concept list.
+    
+    Args:
+        concept: Concept data with id, title, description.
+        on_select: Callback when concept is selected.
+        is_current: Whether this is the current concept.
+        is_completed: Whether the concept is completed.
+    """
+    concept_id = concept.get("id", "")
+    title = concept.get("title", "Untitled")
+    description = concept.get("description", "")[:100]
+    
+    # Status icon
+    if is_completed:
+        icon = "✅"
+        border_color = "#28a745"
+    elif is_current:
+        icon = "▶"
+        border_color = "#007bff"
+    else:
+        icon = "○"
+        border_color = "#dee2e6"
+    
+    st.markdown(
+        f"""
+        <div style="
+            border: 2px solid {border_color};
+            border-radius: 8px;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            cursor: pointer;
+        ">
+            <strong>{icon} {title}</strong>
+            <p style="color: #6c757d; font-size: 0.9rem; margin: 0.5rem 0 0 0;">{description}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    
+    if st.button(
+        "Select" if not is_current else "Currently Learning",
+        key=f"select_concept_{concept_id}",
+        disabled=is_current,
+    ):
+        if on_select and not is_current:
+            on_select(concept_id)
