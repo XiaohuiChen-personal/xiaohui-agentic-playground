@@ -995,8 +995,8 @@ The following service interfaces define how the UI interacts with the backend.
 │  │  get_results() → QuizResult                                         │    │
 │  │    Returns final quiz results with feedback                         │    │
 │  │                                                                      │    │
-│  │  get_weak_areas() → List[Concept]                                   │    │
-│  │    Returns concepts that need review                                │    │
+│  │  get_weak_concepts() → List[str]                                    │    │
+│  │    Returns concept IDs that need review                             │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                              │
 │  ┌─────────────────────────────────────────────────────────────────────┐    │
@@ -1024,8 +1024,11 @@ The following service interfaces define how the UI interacts with the backend.
 │  │  set_preferences(prefs: UserPreferences) → None                     │    │
 │  │    Updates user preferences                                         │    │
 │  │                                                                      │    │
-│  │  onboard() → OnboardingResult                                       │    │
-│  │    Runs initial user onboarding                                     │    │
+│  │  is_onboarded() → bool                                              │    │
+│  │    Returns whether user has completed onboarding                    │    │
+│  │                                                                      │    │
+│  │  complete_onboarding(prefs: UserPreferences) → None                 │    │
+│  │    Completes onboarding and saves initial preferences               │    │
 │  └─────────────────────────────────────────────────────────────────────┘    │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
