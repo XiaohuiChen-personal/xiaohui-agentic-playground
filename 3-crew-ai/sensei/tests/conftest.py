@@ -183,6 +183,22 @@ def temp_db(tmp_path: Path):
 
 
 @pytest.fixture
+def mock_database(tmp_path: Path):
+    """Create a mock database for service testing.
+    
+    Alias for temp_db with a more service-oriented name.
+    
+    Returns:
+        Database instance with temporary SQLite file.
+    """
+    from sensei.storage.database import Database
+    
+    db_path = tmp_path / "test_services.db"
+    db = Database(db_path=db_path)
+    return db
+
+
+@pytest.fixture
 def mock_file_storage_paths(tmp_path: Path, monkeypatch):
     """Mock file storage paths to use temporary directory.
     

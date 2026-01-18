@@ -1,1 +1,1 @@
-"""Tests for service layer."""
+"""Unit tests for Sensei services."""
