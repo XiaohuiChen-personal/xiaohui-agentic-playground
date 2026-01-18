@@ -436,6 +436,186 @@ def get_teaching_crew_context(
     }
 
 
+# =============================================================================
+# Teaching Crew Formatters
+# =============================================================================
+
+def format_previous_struggles(concept_history: dict[str, Any]) -> str:
+    """Format concept history into a human-readable struggles description.
+    
+    Converts raw concept history data into a descriptive string that
+    helps the Teaching Crew understand the learner's past difficulties.
+    
+    Args:
+        concept_history: Dictionary with mastery_level, questions_asked,
+            times_reviewed, and is_new fields.
+    
+    Returns:
+        Human-readable description of previous struggles, or
+        "No previous struggles noted." if none.
+    
+    Example:
+        >>> ctx = {"mastery_level": 0.3, "questions_asked": 5, "is_new": False}
+        >>> format_previous_struggles(ctx)
+        "The learner has struggled with this concept: mastery is only 30%, 
+         asked 5 questions previously. Provide extra clarity and examples."
+    """
+    if concept_history.get("is_new", True):
+        return "This is a new concept for the learner. No previous learning history."
+    
+    mastery = concept_history.get("mastery_level", 0.0)
+    questions = concept_history.get("questions_asked", 0)
+    times_reviewed = concept_history.get("times_reviewed", 0)
+    
+    # No struggles detected
+    if questions <= 1 and mastery >= 0.7:
+        return "No previous struggles noted. The learner has shown good understanding."
+    
+    # Build struggles description
+    struggles = []
+    
+    if mastery < 0.3:
+        struggles.append(f"mastery is very low ({mastery:.0%})")
+    elif mastery < 0.5:
+        struggles.append(f"mastery is only {mastery:.0%}")
+    elif mastery < 0.7:
+        struggles.append(f"mastery is moderate ({mastery:.0%})")
+    
+    if questions > 5:
+        struggles.append(f"asked {questions} questions previously (high confusion)")
+    elif questions > 2:
+        struggles.append(f"asked {questions} questions previously")
+    
+    if times_reviewed > 3:
+        struggles.append(f"reviewed this concept {times_reviewed} times")
+    
+    if not struggles:
+        return "No significant struggles noted."
+    
+    return (
+        f"The learner has struggled with this concept: {', '.join(struggles)}. "
+        "Provide extra clarity, use more examples, and address potential confusion points."
+    )
+
+
+def format_learning_style(style: LearningStyle | str) -> str:
+    """Format learning style into a human-readable description.
+    
+    Args:
+        style: LearningStyle enum or string value.
+    
+    Returns:
+        Human-readable description for the LLM prompt.
+    """
+    if isinstance(style, str):
+        try:
+            style = LearningStyle(style)
+        except ValueError:
+            return f"{style} (adapt explanation accordingly)"
+    
+    descriptions = {
+        LearningStyle.VISUAL: "Visual (prefers diagrams, flowcharts, and visual representations)",
+        LearningStyle.READING: "Reading (prefers detailed written explanations with clear structure)",
+        LearningStyle.HANDS_ON: "Hands-on (prefers code examples, exercises, and practical applications)",
+    }
+    return descriptions.get(style, str(style.value))
+
+
+def format_experience_level(level: ExperienceLevel | str) -> str:
+    """Format experience level into a human-readable description.
+    
+    Args:
+        level: ExperienceLevel enum or string value.
+    
+    Returns:
+        Human-readable description for the LLM prompt.
+    """
+    if isinstance(level, str):
+        try:
+            level = ExperienceLevel(level)
+        except ValueError:
+            return f"{level} (adjust complexity accordingly)"
+    
+    descriptions = {
+        ExperienceLevel.BEGINNER: "Beginner (new to the topic, needs foundational context and simple explanations)",
+        ExperienceLevel.INTERMEDIATE: "Intermediate (has basic knowledge, ready for deeper concepts)",
+        ExperienceLevel.ADVANCED: "Advanced (experienced, wants nuanced insights and edge cases)",
+    }
+    return descriptions.get(level, str(level.value))
+
+
+def format_chat_history(chat_history: list[dict[str, Any]], max_messages: int = 5) -> str:
+    """Format chat history into a string for the LLM prompt.
+    
+    Args:
+        chat_history: List of chat messages with 'role' and 'content'.
+        max_messages: Maximum number of recent messages to include.
+    
+    Returns:
+        Formatted chat history string.
+    """
+    if not chat_history:
+        return "No previous questions in this session."
+    
+    recent = chat_history[-max_messages:]
+    formatted = []
+    
+    for msg in recent:
+        role = msg.get("role", "unknown")
+        content = msg.get("content", "")
+        if role == "user":
+            formatted.append(f"Learner: {content}")
+        elif role == "assistant":
+            formatted.append(f"Sensei: {content}")
+    
+    return "\n".join(formatted) if formatted else "No previous questions in this session."
+
+
+def get_teaching_crew_inputs(
+    course_id: str,
+    concept: dict[str, Any],
+    module_title: str = "",
+    lesson_content: str = "",
+    db: "Database | None" = None,
+) -> dict[str, str]:
+    """Get ready-to-use inputs for TeachingCrew methods.
+    
+    This function gathers context and formats it into strings
+    suitable for direct use with TeachingCrew.teach_concept()
+    or TeachingCrew.answer_question().
+    
+    Args:
+        course_id: The course identifier.
+        concept: The concept dictionary (id, title, content).
+        module_title: Title of the current module.
+        lesson_content: The lesson content (for Q&A context).
+        db: Optional database instance.
+    
+    Returns:
+        Dictionary with formatted string inputs:
+        - concept_title
+        - concept_content
+        - module_title
+        - learning_style (formatted)
+        - experience_level (formatted)
+        - previous_struggles (formatted)
+        - chat_history (formatted)
+        - lesson_content
+    """
+    ctx = get_teaching_crew_context(course_id, concept, db)
+    
+    return {
+        "concept_title": concept.get("title", "Untitled Concept"),
+        "concept_content": concept.get("content", "No content provided."),
+        "module_title": module_title or "Current Module",
+        "learning_style": format_learning_style(ctx["personalization"]["learning_style"]),
+        "experience_level": format_experience_level(ctx["personalization"]["experience_level"]),
+        "previous_struggles": format_previous_struggles(ctx["concept_history"]),
+        "chat_history": format_chat_history(ctx["recent_chat"]),
+        "lesson_content": lesson_content or "No lesson content available.",
+    }
+
+
 def get_assessment_crew_context(
     course_id: str,
     module: dict[str, Any],

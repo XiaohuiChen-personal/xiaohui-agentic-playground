@@ -37,6 +37,10 @@ from sensei.storage.file_storage import (
 from sensei.storage.memory_manager import (
     clear_all_memory,
     clear_session_memory,
+    format_chat_history,
+    format_experience_level,
+    format_learning_style,
+    format_previous_struggles,
     get_assessment_crew_context,
     get_concept_history,
     get_crew_memory_settings,
@@ -49,6 +53,7 @@ from sensei.storage.memory_manager import (
     get_openai_embedder_config,
     get_short_term_memory_config,
     get_teaching_crew_context,
+    get_teaching_crew_inputs,
     get_user_context,
 )
 
@@ -99,5 +104,11 @@ __all__ = [
     "get_concept_history",
     "get_curriculum_crew_context",
     "get_teaching_crew_context",
+    "get_teaching_crew_inputs",
     "get_assessment_crew_context",
+    # Memory manager - Formatters for crew inputs
+    "format_previous_struggles",
+    "format_learning_style",
+    "format_experience_level",
+    "format_chat_history",
 ]

@@ -1,0 +1,127 @@
+# Assessment Crew Tasks Configuration
+# These tasks are executed in separate phases based on user action:
+# 1. generate_quiz_task - When user clicks "Take Quiz"
+# 2. evaluate_quiz_task - After user completes the quiz
+
+generate_quiz_task:
+  description: >
+    Create a comprehensive quiz to assess understanding of the module concepts.
+    
+    **Module Information:**
+    - Title: {module_title}
+    - Module ID: {module_id}
+    
+    **Concepts to Assess:**
+    {concepts_list}
+    
+    **Learner Profile:**
+    - Experience Level: {experience_level}
+    - Previous Quiz Attempts: {previous_attempts}
+    
+    **Focus Areas (concepts needing extra attention):**
+    {focus_concepts}
+    
+    **Previous Weak Areas:**
+    {weak_areas}
+    
+    Your task:
+    1. Review all concepts in the module
+    2. Create 5-8 diverse questions covering the key concepts
+    3. Weight MORE questions toward focus areas and weak concepts
+    4. Include a mix of question types:
+       - Multiple choice (3-4 options each)
+       - True/False
+       - Code completion or analysis (if applicable)
+       - Open-ended conceptual explanation (for deeper understanding)
+    5. Ensure questions test understanding, not just memorization
+    6. Prepare clear explanations for each correct answer
+    7. Calibrate difficulty based on learner's experience level
+    8. Link each question to its source concept
+    9. Include at least one open-ended question requiring explanation
+  expected_output: >
+    A JSON object with the following structure:
+    
+    {
+      "questions": [
+        {
+          "question": "Clear question text",
+          "question_type": "multiple_choice" | "true_false" | "code" | "open_ended",
+          "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+          "correct_answer": "A) Option 1",
+          "explanation": "Clear explanation of why this is correct and others are wrong",
+          "concept_id": "concept-xxx",
+          "difficulty": 1-5
+        }
+      ]
+    }
+    
+    Requirements:
+    - 5-8 questions total
+    - At least 2 questions for focus/weak concepts
+    - At least 1 open-ended question for deeper assessment
+    - Mix of difficulty levels (mostly 2-3 for beginners, 3-4 for advanced)
+    - Options should be plausible (based on common misconceptions)
+    - For open_ended questions, options can be empty and correct_answer is a sample answer
+    - Explanations should be educational, not just "A is correct"
+  agent: quiz_designer
+
+evaluate_quiz_task:
+  description: >
+    Analyze the learner's quiz performance and provide detailed feedback.
+    
+    **Quiz Information:**
+    - Module: {module_title}
+    - Total Questions: {total_questions}
+    
+    **Results Summary:**
+    - Correct: {correct_count}
+    - Incorrect: {incorrect_count}
+    - Score: {score_percentage}%
+    
+    **Detailed Results:**
+    {detailed_results}
+    
+    **Learner Profile:**
+    - Experience Level: {experience_level}
+    - Learning Style: {learning_style}
+    
+    **Previous Performance:**
+    {previous_performance}
+    
+    Your task:
+    1. Calculate the overall score and pass/fail status (80% to pass)
+    2. Analyze patterns in incorrect answers:
+       - Are mistakes clustered around specific concepts?
+       - Are there common types of errors (e.g., off-by-one, scope confusion)?
+    3. Identify specific concepts that need review
+    4. Generate encouraging but honest feedback
+    5. Provide specific recommendations:
+       - If passed: Celebrate and preview what's next
+       - If failed: Identify exactly what to review and why
+    6. Consider the learner's journey (improvement from past quizzes)
+  expected_output: >
+    A JSON object with the following structure:
+    
+    {
+      "score": 0.85,
+      "passed": true,
+      "correct_count": 7,
+      "total_questions": 8,
+      "weak_concepts": ["concept-xxx", "concept-yyy"],
+      "feedback": "Great job! You demonstrated solid understanding of... However, you might want to review...",
+      "detailed_analysis": {
+        "strengths": ["Strong grasp of X", "Excellent understanding of Y"],
+        "areas_for_improvement": ["Review Z concept", "Practice W type problems"],
+        "patterns_noticed": "You tend to confuse X with Y when..."
+      },
+      "recommendation": "proceed" | "review",
+      "next_steps": "You're ready to move on to Module X which builds on..."
+    }
+    
+    Requirements:
+    - Feedback must be encouraging even for failing scores
+    - Identify specific weak concepts by their IDs
+    - Provide actionable next steps
+    - Acknowledge what the learner did well
+    - For failing scores, be supportive while being honest
+  agent: performance_analyst

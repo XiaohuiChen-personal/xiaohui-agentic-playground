@@ -5,7 +5,7 @@ description = "AI-Powered Adaptive Learning Tutor built with CrewAI"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "crewai>=0.86.0",
+    "crewai[google-genai,anthropic]>=0.86.0",
     "crewai-tools>=0.17.0",
     "streamlit>=1.41.0",
     "pydantic>=2.10.0",

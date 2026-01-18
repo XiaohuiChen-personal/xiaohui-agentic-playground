@@ -625,6 +625,291 @@ class TestQuizServiceAnswerNormalization:
         assert result.is_correct is True
 
 
+class TestQuizServiceCodeQuestions:
+    """Tests for CODE question type handling."""
+    
+    def test_code_question_exact_match(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should match code answers exactly."""
+        from sensei.models.enums import QuestionType
+        
+        service = QuizService(database=mock_database)
+        
+        # Create a quiz with a code question manually
+        code_question = QuizQuestion(
+            question="What is the output of print(1 + 1)?",
+            question_type=QuestionType.CODE,
+            options=[],
+            correct_answer="2",
+            explanation="1 + 1 equals 2",
+            concept_id="test-concept",
+            difficulty=2,
+        )
+        
+        quiz = Quiz(
+            module_id="test-module",
+            module_title="Test Module",
+            questions=[code_question],
+        )
+        
+        # Set quiz state manually
+        service._current_quiz = quiz
+        service._course_id = "test-course"
+        
+        # Test exact match
+        result = service.submit_answer(code_question.id, "2")
+        assert result.is_correct is True
+    
+    def test_code_question_whitespace_normalization(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should normalize whitespace in code answers."""
+        from sensei.models.enums import QuestionType
+        
+        service = QuizService(database=mock_database)
+        
+        # Create a quiz with a code question that has whitespace
+        code_question = QuizQuestion(
+            question="Write a for loop",
+            question_type=QuestionType.CODE,
+            options=[],
+            correct_answer="for i in range(10): print(i)",
+            explanation="Basic for loop",
+            concept_id="test-concept",
+            difficulty=3,
+        )
+        
+        quiz = Quiz(
+            module_id="test-module",
+            module_title="Test Module",
+            questions=[code_question],
+        )
+        
+        service._current_quiz = quiz
+        service._course_id = "test-course"
+        
+        # Submit with different whitespace (extra spaces)
+        result = service.submit_answer(
+            code_question.id, 
+            "for   i   in   range(10):    print(i)"
+        )
+        assert result.is_correct is True
+    
+    def test_code_question_multiline_whitespace_normalization(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should normalize multiline code to single line for comparison."""
+        from sensei.models.enums import QuestionType
+        
+        service = QuizService(database=mock_database)
+        
+        code_question = QuizQuestion(
+            question="Define a function",
+            question_type=QuestionType.CODE,
+            options=[],
+            correct_answer="def hello(): return 'hi'",
+            explanation="Simple function",
+            concept_id="test-concept",
+            difficulty=2,
+        )
+        
+        quiz = Quiz(
+            module_id="test-module",
+            module_title="Test Module",
+            questions=[code_question],
+        )
+        
+        service._current_quiz = quiz
+        service._course_id = "test-course"
+        
+        # Submit with newlines/tabs (will be normalized to spaces)
+        result = service.submit_answer(
+            code_question.id,
+            "def hello():\n\treturn 'hi'"
+        )
+        assert result.is_correct is True
+    
+    def test_code_question_wrong_answer(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should detect wrong code answers."""
+        from sensei.models.enums import QuestionType
+        
+        service = QuizService(database=mock_database)
+        
+        code_question = QuizQuestion(
+            question="What is 2 + 2?",
+            question_type=QuestionType.CODE,
+            options=[],
+            correct_answer="4",
+            explanation="Basic math",
+            concept_id="test-concept",
+            difficulty=1,
+        )
+        
+        quiz = Quiz(
+            module_id="test-module",
+            module_title="Test Module",
+            questions=[code_question],
+        )
+        
+        service._current_quiz = quiz
+        service._course_id = "test-course"
+        
+        result = service.submit_answer(code_question.id, "5")
+        assert result.is_correct is False
+
+
+class TestQuizServiceOpenEndedQuestions:
+    """Tests for OPEN_ENDED question type handling."""
+    
+    def test_open_ended_always_returns_true(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Open-ended questions should always return True (deferred to LLM).
+        
+        The actual evaluation of open-ended answers is deferred to the
+        Performance Analyst (Assessment Crew) in M6. For now, any non-empty
+        answer is accepted.
+        """
+        from sensei.models.enums import QuestionType
+        
+        service = QuizService(database=mock_database)
+        
+        open_question = QuizQuestion(
+            question="Explain the concept of recursion in your own words.",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="Recursion is when a function calls itself to solve smaller subproblems.",
+            explanation="Recursion involves a function calling itself.",
+            concept_id="test-concept",
+            difficulty=3,
+        )
+        
+        quiz = Quiz(
+            module_id="test-module",
+            module_title="Test Module",
+            questions=[open_question],
+        )
+        
+        service._current_quiz = quiz
+        service._course_id = "test-course"
+        
+        # Any answer should be "correct" (deferred evaluation)
+        result = service.submit_answer(
+            open_question.id,
+            "Recursion is calling yourself over and over until you reach a base case."
+        )
+        assert result.is_correct is True
+    
+    def test_open_ended_different_wording_accepted(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Differently worded open-ended answers should be accepted."""
+        from sensei.models.enums import QuestionType
+        
+        service = QuizService(database=mock_database)
+        
+        open_question = QuizQuestion(
+            question="What is polymorphism?",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="Polymorphism is the ability of objects to take many forms.",
+            explanation="Polymorphism allows different types to be treated uniformly.",
+            concept_id="test-concept",
+            difficulty=4,
+        )
+        
+        quiz = Quiz(
+            module_id="test-module",
+            module_title="Test Module",
+            questions=[open_question],
+        )
+        
+        service._current_quiz = quiz
+        service._course_id = "test-course"
+        
+        # Completely different wording should still be "accepted"
+        result = service.submit_answer(
+            open_question.id,
+            "It means one interface can work with many different implementations!"
+        )
+        assert result.is_correct is True
+    
+    def test_open_ended_short_answer_accepted(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Short open-ended answers should be accepted (evaluation deferred)."""
+        from sensei.models.enums import QuestionType
+        
+        service = QuizService(database=mock_database)
+        
+        open_question = QuizQuestion(
+            question="Describe how garbage collection works.",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="Garbage collection automatically frees memory by removing unused objects.",
+            explanation="GC manages memory automatically.",
+            concept_id="test-concept",
+            difficulty=3,
+        )
+        
+        quiz = Quiz(
+            module_id="test-module",
+            module_title="Test Module",
+            questions=[open_question],
+        )
+        
+        service._current_quiz = quiz
+        service._course_id = "test-course"
+        
+        # Even a very short answer is accepted (LLM will evaluate quality)
+        result = service.submit_answer(
+            open_question.id,
+            "It cleans up memory."
+        )
+        assert result.is_correct is True
+    
+    def test_open_ended_not_counted_as_wrong(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Open-ended answers should NOT add to weak_concepts.
+        
+        Since open-ended questions return True (deferred evaluation),
+        they shouldn't contribute to the weak concepts list.
+        """
+        from sensei.models.enums import QuestionType
+        
+        service = QuizService(database=mock_database)
+        
+        open_question = QuizQuestion(
+            question="Explain OOP principles.",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="OOP has encapsulation, inheritance, polymorphism, and abstraction.",
+            explanation="Four pillars of OOP.",
+            concept_id="oop-concept",
+            difficulty=3,
+        )
+        
+        quiz = Quiz(
+            module_id="test-module",
+            module_title="Test Module",
+            questions=[open_question],
+        )
+        
+        service._current_quiz = quiz
+        service._course_id = "test-course"
+        
+        # Submit any answer
+        service.submit_answer(open_question.id, "Something about classes and objects")
+        
+        # Should NOT be in weak concepts
+        weak = service.get_weak_concepts()
+        assert "oop-concept" not in weak
+
+
 class TestQuizServiceConceptMastery:
     """Tests for concept mastery tracking."""
     

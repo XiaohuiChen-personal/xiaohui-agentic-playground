@@ -30,6 +30,7 @@
 6. [Memory Architecture](#6-memory-architecture)
    - [6.1 Memory Types](#61-memory-types)
    - [6.2 Memory Flow Between Crews](#62-memory-flow-between-crews)
+   - [6.3 Implementation Approach: Hybrid Memory](#63-implementation-approach-hybrid-memory)
 7. [Data Models](#7-data-models)
    - [7.1 Core Entities](#71-core-entities)
    - [7.2 Entity Relationships](#72-entity-relationships)
@@ -856,6 +857,81 @@ The **Assessment Crew** creates and evaluates quizzes after a learner completes 
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### 6.3 Implementation Approach: Hybrid Memory
+
+Sensei uses a **hybrid memory approach** that separates application persistence from AI learning:
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                        HYBRID MEMORY ARCHITECTURE                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  SERVICE LAYER (Application Persistence)                            │    │
+│  │                                                                      │    │
+│  │  Managed by: CourseService, ProgressService, QuizService, etc.      │    │
+│  │                                                                      │    │
+│  │  ┌─────────────────────────┐  ┌─────────────────────────────────┐  │    │
+│  │  │  database.py (SQLite)   │  │  file_storage.py (JSON)         │  │    │
+│  │  │                         │  │                                  │  │    │
+│  │  │  • user_progress        │  │  • courses/{id}.json            │  │    │
+│  │  │  • quiz_results         │  │  • user_preferences.json        │  │    │
+│  │  │  • concept_mastery      │  │  • chat_history.json            │  │    │
+│  │  │  • learning_sessions    │  │                                  │  │    │
+│  │  │  • daily_activity       │  │                                  │  │    │
+│  │  └─────────────────────────┘  └─────────────────────────────────┘  │    │
+│  │                                                                      │    │
+│  │  Purpose: Business data that the application controls               │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  CREWAI LAYER (AI Learning Memory)                                  │    │
+│  │                                                                      │    │
+│  │  Managed by: CrewAI framework (memory=True)                         │    │
+│  │                                                                      │    │
+│  │  ┌───────────────┐ ┌───────────────┐ ┌───────────────────────────┐ │    │
+│  │  │  Short-Term   │ │   Long-Term   │ │   Entity + Contextual     │ │    │
+│  │  │               │ │               │ │                           │ │    │
+│  │  │ Agent-to-agent│ │ Learned       │ │ Extracted entities from   │ │    │
+│  │  │ context in    │ │ patterns      │ │ conversations + semantic  │ │    │
+│  │  │ single crew   │ │ across crew   │ │ search for relevant       │ │    │
+│  │  │ execution     │ │ executions    │ │ past context              │ │    │
+│  │  └───────────────┘ └───────────────┘ └───────────────────────────┘ │    │
+│  │                                                                      │    │
+│  │  Purpose: AI agents learn and improve over time                     │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐    │
+│  │  BRIDGE: memory_manager.py                                          │    │
+│  │                                                                      │    │
+│  │  • Provides context from storage layer to crews                     │    │
+│  │  • Configures embeddings for semantic memory                        │    │
+│  │  • Ensures memory directory exists                                  │    │
+│  └─────────────────────────────────────────────────────────────────────┘    │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+#### Why Hybrid?
+
+| Benefit | Description |
+|---------|-------------|
+| **Separation of Concerns** | Business logic (services) vs AI learning (CrewAI) |
+| **Testability** | Services can be unit tested by mocking crews |
+| **Predictability** | Application controls what data persists |
+| **AI Improvement** | Agents get smarter over time via CrewAI memory |
+| **Independence** | Each layer can evolve without breaking the other |
+
+#### Memory Type Mapping
+
+| Design Doc Term | Implementation |
+|-----------------|----------------|
+| Short-Term Memory (session context) | `LearningSession` schema + CrewAI short-term |
+| Long-Term Memory (quiz scores, patterns) | `database.py` + CrewAI long-term |
+| Entity Memory (courses, modules) | `file_storage.py` + CrewAI entity |
+| User Memory (preferences) | `file_storage.py` (user_preferences.json) |
+| Contextual Memory | CrewAI contextual (automatic) |
 
 ---
 

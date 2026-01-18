@@ -1,0 +1,99 @@
+# Curriculum Crew Tasks Configuration
+# These tasks work sequentially to create a complete learning curriculum.
+# Output format is aligned with the application's Pydantic schemas.
+
+plan_curriculum_task:
+  description: >
+    Design a comprehensive curriculum structure for teaching: {topic}
+    
+    Consider the learner's profile:
+    - Experience Level: {experience_level}
+    - Learning Style: {learning_style}
+    - Learning Goals: {goals}
+    
+    Your task:
+    1. Analyze the full scope of the topic
+    2. Break it down into 5-10 logical learning modules
+    3. Order modules by prerequisite relationships (foundational → advanced)
+    4. Define clear learning objectives for each module
+    5. Estimate realistic time per module (in minutes, typically 60-240 minutes each)
+    
+    Adapt the curriculum depth and pace based on the learner's experience level:
+    - Beginner: More foundational modules, slower pace, extra context
+    - Intermediate: Balanced approach, assume basic knowledge
+    - Advanced: Focus on advanced topics, faster pace, deeper content
+  expected_output: >
+    A structured JSON course outline with the following format:
+    {
+      "title": "Course title based on the topic",
+      "description": "Brief course description (2-3 sentences)",
+      "modules": [
+        {
+          "title": "Module title",
+          "description": "What this module covers and key learning objectives",
+          "order": 0,
+          "estimated_minutes": <number between 60-240>
+        },
+        ...
+      ]
+    }
+    
+    Important:
+    - Modules must be ordered from foundational to advanced (order starts at 0)
+    - Include 5-10 modules total
+    - estimated_minutes should be realistic (60-240 minutes per module)
+    - Include learning objectives in each module's description
+  agent: curriculum_architect
+
+research_content_task:
+  description: >
+    Using the curriculum structure provided, research and define the key concepts
+    for each module in the course about: {topic}
+    
+    Curriculum structure to expand:
+    {curriculum_structure}
+    
+    For each module, you must:
+    1. Identify 3-7 key concepts that cover the module's learning objectives
+    2. Define clear learning points for each concept
+    3. Note common misconceptions learners face
+    4. Include practical applications and real-world examples
+    5. Order concepts from foundational to advanced within each module
+    
+    Each concept should be learnable in approximately 10-20 minutes.
+    Ensure concepts build upon each other logically within the module.
+  expected_output: >
+    A complete JSON course structure with detailed concepts:
+    {
+      "title": "Course title",
+      "description": "Course description",
+      "modules": [
+        {
+          "title": "Module title",
+          "description": "Module description with learning objectives",
+          "order": 0,
+          "estimated_minutes": <number>,
+          "concepts": [
+            {
+              "title": "Concept title",
+              "content": "A comprehensive description that includes:\n\n**Overview:**\nBrief description of what will be learned.\n\n**Key Learning Points:**\n- Point 1\n- Point 2\n- Point 3\n\n**Common Misconceptions:**\n- Misconception 1 and why it's wrong\n\n**Practical Applications:**\n- Real-world application example",
+              "order": 0
+            },
+            ...
+          ]
+        },
+        ...
+      ]
+    }
+    
+    Important:
+    - Each module should have 3-7 concepts
+    - Concepts must be ordered within each module (order starts at 0)
+    - The "content" field must be a markdown-formatted string containing:
+      * Overview of the concept
+      * Key learning points as a bulleted list
+      * Common misconceptions learners face
+      * Practical applications and examples
+    - Concepts should be specific and well-defined
+    - Do NOT include "id" fields - they will be auto-generated
+  agent: content_researcher
