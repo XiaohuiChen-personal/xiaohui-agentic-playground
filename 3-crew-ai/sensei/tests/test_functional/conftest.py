@@ -10,6 +10,10 @@ These tests should be run manually or in pre-release, not in CI.
 LangSmith Integration:
     If LANGSMITH_API_KEY is set, traces will be sent to LangSmith
     for observability. Set LANGSMITH_PROJECT to organize traces.
+
+Memory Isolation:
+    CrewAI memory is cleared before each test to ensure test isolation
+    and prevent cross-test contamination.
 """
 
 import os
@@ -37,16 +41,16 @@ def has_api_keys():
     """Check if required API keys are available.
     
     All three keys are REQUIRED for functional tests:
-    - GOOGLE_API_KEY: For Gemini models (curriculum_architect)
-    - ANTHROPIC_API_KEY: For Claude models (content_researcher, knowledge_teacher, quiz_designer)
+    - GOOGLE_API_KEY: For Gemini models (content_researcher)
+    - ANTHROPIC_API_KEY: For Claude models (curriculum_architect, knowledge_teacher, quiz_designer)
     - OPENAI_API_KEY: For GPT models (qa_mentor, performance_analyst) and embeddings
     
     Returns:
         True if all required keys are present.
     """
     required_keys = [
-        "GOOGLE_API_KEY",      # Gemini - curriculum_architect
-        "ANTHROPIC_API_KEY",   # Claude - content_researcher, knowledge_teacher, quiz_designer
+        "GOOGLE_API_KEY",      # Gemini - content_researcher
+        "ANTHROPIC_API_KEY",   # Claude - curriculum_architect, knowledge_teacher, quiz_designer
         "OPENAI_API_KEY",      # GPT - qa_mentor, performance_analyst, and embeddings
     ]
     
@@ -59,11 +63,11 @@ def skip_if_no_keys(has_api_keys):
     if not has_api_keys:
         missing_keys = []
         if not os.getenv("GOOGLE_API_KEY"):
-            missing_keys.append("GOOGLE_API_KEY (for Gemini models)")
+            missing_keys.append("GOOGLE_API_KEY (for Gemini - content_researcher)")
         if not os.getenv("ANTHROPIC_API_KEY"):
-            missing_keys.append("ANTHROPIC_API_KEY (for Claude models)")
+            missing_keys.append("ANTHROPIC_API_KEY (for Claude - curriculum_architect, knowledge_teacher, quiz_designer)")
         if not os.getenv("OPENAI_API_KEY"):
-            missing_keys.append("OPENAI_API_KEY (for GPT models and embeddings)")
+            missing_keys.append("OPENAI_API_KEY (for GPT - qa_mentor, performance_analyst, embeddings)")
         
         missing_str = "\n  - ".join(missing_keys)
         pytest.skip(f"Missing required API keys for functional tests:\n  - {missing_str}")
@@ -76,8 +80,8 @@ def check_api_keys_at_startup():
     about missing API keys.
     """
     required = {
-        "GOOGLE_API_KEY": "Gemini (curriculum_architect)",
-        "ANTHROPIC_API_KEY": "Claude (content_researcher, knowledge_teacher, quiz_designer)",
+        "GOOGLE_API_KEY": "Gemini (content_researcher)",
+        "ANTHROPIC_API_KEY": "Claude (curriculum_architect, knowledge_teacher, quiz_designer)",
         "OPENAI_API_KEY": "GPT (qa_mentor, performance_analyst) + embeddings",
     }
     
@@ -98,6 +102,28 @@ def check_api_keys_at_startup():
 
 # Check API keys when conftest is loaded
 check_api_keys_at_startup()
+
+
+@pytest.fixture(autouse=True)
+def clean_crewai_memory():
+    """Clean CrewAI memory before each functional test.
+    
+    This ensures test isolation by clearing any persistent memory
+    that CrewAI stores between crew executions. Without this,
+    memories from one test could influence another test's results.
+    
+    The fixture runs automatically before each test (autouse=True)
+    and clears memory both before and after to ensure clean state.
+    """
+    from sensei.storage.memory_manager import clear_all_memory
+    
+    # Clean before test
+    clear_all_memory()
+    
+    yield
+    
+    # Clean after test (optional, but ensures no leftover state)
+    clear_all_memory()
 
 
 @pytest.fixture(scope="module")

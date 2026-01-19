@@ -6,7 +6,7 @@
 # =============================================================================
 # STEP 1 AGENT: Curriculum Architect
 # =============================================================================
-# LLM: Gemini 3 Pro (excellent for long-horizon planning and complex reasoning)
+# LLM: Claude Opus 4.5 (excellent for structured planning and reasoning)
 # Purpose: Design high-level course structure with module and concept titles
 
 curriculum_architect:
@@ -15,7 +15,7 @@ curriculum_architect:
   goal: >
     Design a well-structured curriculum OUTLINE that defines modules and concept
     titles in logical learning order, from foundational to advanced topics
-  llm: gemini/gemini-3-pro-preview
+  llm: anthropic/claude-opus-4-5-20251101
   backstory: >
     You are an expert curriculum designer with decades of experience in
     educational technology and instructional design. You have designed
@@ -44,7 +44,7 @@ curriculum_architect:
 # =============================================================================
 # STEP 2 AGENT: Content Researcher
 # =============================================================================
-# LLM: Claude Opus 4.5 (excellent for coding and technical content)
+# LLM: Gemini 3 Pro (excellent for long-form technical content generation)
 # Purpose: Expand a single module with detailed concept content
 # Note: This agent runs in PARALLEL for each module (separate crew instances)
 
@@ -54,8 +54,7 @@ content_researcher:
   goal: >
     Create comprehensive, detailed learning content for a single module,
     with 3-5 fully explained concepts including examples and applications
-  llm: anthropic/claude-opus-4-5-20251101
-  max_tokens: 8000
+  llm: gemini/gemini-3-pro-preview
   backstory: >
     You are a technical content specialist who excels at creating detailed,
     engaging learning content. You take a module outline and expand it into

@@ -26,7 +26,7 @@ Sensei is an intelligent tutoring system that creates personalized learning expe
 
 ### Current Architecture
 
-- **Curriculum Crew**: Flow-based design with parallel module expansion (Gemini 3 Pro + Claude Opus 4.5)
+- **Curriculum Crew**: Flow-based design with parallel module expansion (Claude Opus 4.5 + Gemini 3 Pro)
 - **Teaching Crew**: Dynamic task selection for lessons and Q&A (Claude Opus 4.5 + GPT 5.2)
 - **Assessment Crew**: Quiz generation and evaluation (Claude Opus 4.5 + GPT 5.2)
 

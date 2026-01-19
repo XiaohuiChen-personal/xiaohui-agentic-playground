@@ -444,8 +444,8 @@ The crew runs once per course creation and generates a complete structure of mod
 
 | Agent | Role | Responsibility | LLM |
 |-------|------|----------------|-----|
-| 🗺️ **Curriculum Architect** | Senior curriculum designer | Plans overall course structure, defines module outlines, orders prerequisites | Gemini 3 Pro |
-| 🔬 **Content Researcher** | Technical content specialist | Expands modules with detailed concepts, learning points, and practical applications | Claude Opus 4.5 |
+| 🗺️ **Curriculum Architect** | Senior curriculum designer | Plans overall course structure, defines module outlines, orders prerequisites | Claude Opus 4.5 |
+| 🔬 **Content Researcher** | Technical content specialist | Expands modules with detailed concepts, learning points, and practical applications | Gemini 3 Pro |
 
 #### Architecture: Flow-Based Design
 
@@ -486,7 +486,7 @@ The Curriculum Crew uses CrewAI Flows to orchestrate a multi-step process:
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │                                                                       │   │
 │  │  STEP 1: CREATE OUTLINE                                              │   │
-│  │  Agent: 🗺️ Curriculum Architect (Gemini 3 Pro)                        │   │
+│  │  Agent: 🗺️ Curriculum Architect (Claude Opus 4.5)                     │   │
 │  │                                                                       │   │
 │  │  • Analyze topic scope and depth                                     │   │
 │  │  • Consider user's experience level and learning style               │   │
@@ -504,7 +504,7 @@ The Curriculum Crew uses CrewAI Flows to orchestrate a multi-step process:
 │  ┌──────────────────────────────────────────────────────────────────────┐   │
 │  │                                                                       │   │
 │  │  STEP 2: EXPAND MODULES (PARALLEL)                                   │   │
-│  │  Agent: 🔬 Content Researcher (Claude Opus 4.5)                       │   │
+│  │  Agent: 🔬 Content Researcher (Gemini 3 Pro)                          │   │
 │  │                                                                       │   │
 │  │  For each ModuleOutline, create an expansion task:                   │   │
 │  │                                                                       │   │
