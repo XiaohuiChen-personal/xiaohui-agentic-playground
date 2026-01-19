@@ -436,25 +436,6 @@ x = x + 5  # x is now 15
 
 
 @pytest.fixture
-def sample_key_takeaways():
-    """Sample key takeaways list."""
-    return [
-        "Variables store data in memory",
-        "Use meaningful names for readability",
-        "Python infers the type automatically",
-    ]
-
-
-@pytest.fixture
-def sample_code_examples():
-    """Sample code examples for concept viewer."""
-    return [
-        "# Basic variable assignment\nx = 10\nprint(x)",
-        "# User input example\nname = input('Enter your name: ')\nprint(f'Hello, {name}!')",
-    ]
-
-
-@pytest.fixture
 def sample_concept_dict():
     """Sample concept as dictionary."""
     return {

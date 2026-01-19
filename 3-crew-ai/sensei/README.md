@@ -21,7 +21,8 @@ Sensei is an intelligent tutoring system that creates personalized learning expe
 | M4 | Service Layer (No AI) | ✅ Complete |
 | M5 | CrewAI Crews | ✅ Complete |
 | M6 | Service-Crew Integration | ✅ Complete |
-| M7-M10 | UI & Polish | ⏳ Planned |
+| M7 | UI Components | ✅ Complete |
+| M8-M10 | UI Pages & Polish | ⏳ Planned |
 
 ### Current Architecture
 
@@ -74,32 +75,37 @@ LANGSMITH_PROJECT=project-sensei
 
 ## 🧪 Testing
 
-### Run All Unit Tests
+### Run Unit Tests (Default)
+
+By default, pytest runs **only unit tests** (functional and e2e tests are excluded):
 
 ```bash
-uv run pytest tests/ -v
+uv run pytest
 ```
 
 ### Run Unit Tests with Coverage
 
 ```bash
-uv run pytest tests/ --cov=sensei --cov-report=term-missing -v
+uv run pytest --cov=sensei --cov-report=term-missing
 ```
 
 ### Run Specific Test Suites
 
 ```bash
 # Service layer tests
-uv run pytest tests/test_services/ -v
+uv run pytest tests/test_services/
 
 # Crew unit tests (mocked LLM)
-uv run pytest tests/test_crews/ -v
+uv run pytest tests/test_crews/
 
 # Storage layer tests
-uv run pytest tests/test_storage/ -v
+uv run pytest tests/test_storage/
 
 # Model/Schema tests
-uv run pytest tests/test_models/ -v
+uv run pytest tests/test_models/
+
+# UI component tests
+uv run pytest tests/test_ui/
 ```
 
 ### Run Functional Tests (Real LLM Calls)
@@ -108,18 +114,12 @@ uv run pytest tests/test_models/ -v
 
 ```bash
 # Run all functional tests
-uv run pytest tests/test_functional/ -m functional -v -s
+uv run pytest tests/test_functional/ -v -s
 
 # Run specific crew functional test
-uv run pytest tests/test_functional/test_curriculum_crew_functional.py -m functional -v -s
-uv run pytest tests/test_functional/test_teaching_crew_functional.py -m functional -v -s
-uv run pytest tests/test_functional/test_assessment_crew_functional.py -m functional -v -s
-```
-
-### Skip Functional Tests (Unit Tests Only)
-
-```bash
-uv run pytest tests/ -v --ignore=tests/test_functional/
+uv run pytest tests/test_functional/test_curriculum_crew_functional.py -v -s
+uv run pytest tests/test_functional/test_teaching_crew_functional.py -v -s
+uv run pytest tests/test_functional/test_assessment_crew_functional.py -v -s
 ```
 
 ## 📈 Test Coverage

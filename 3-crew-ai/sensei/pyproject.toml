@@ -33,9 +33,10 @@ packages = ["src/sensei"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
-addopts = "-v --tb=short"
+addopts = "-v --tb=short --ignore=tests/test_functional --ignore=tests/test_e2e"
 markers = [
     "functional: marks tests that make real LLM API calls (deselect with '-m \"not functional\"')",
+    "e2e: marks end-to-end tests (deselect with '-m \"not e2e\"')",
 ]
 
 [tool.coverage.run]

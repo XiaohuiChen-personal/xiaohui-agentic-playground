@@ -214,8 +214,6 @@ class LearningService:
             concept_id=concept_id,
             concept_title=concept.get("title", ""),
             lesson_content=lesson_content,
-            key_takeaways=self._generate_takeaways_stub(concept),
-            code_examples=self._generate_code_examples_stub(concept),
             module_title=module.get("title", ""),
             module_idx=self._session.current_module_idx,
             concept_idx=self._session.current_concept_idx,
@@ -696,22 +694,6 @@ You've now learned about **{title}**. This knowledge will be essential as you co
 ---
 *💡 Tip: If you have questions, use the chat below to ask Sensei!*
 """
-    
-    def _generate_takeaways_stub(self, concept: dict[str, Any]) -> list[str]:
-        """Generate stub key takeaways for a concept."""
-        title = concept.get("title", "this concept")
-        return [
-            f"Understanding {title} is fundamental",
-            "Practice regularly to reinforce learning",
-            "Connect this to real-world applications",
-        ]
-    
-    def _generate_code_examples_stub(self, concept: dict[str, Any]) -> list[str]:
-        """Generate stub code examples for a concept."""
-        title = concept.get("title", "concept")
-        return [
-            f"# Basic example of {title}\nprint('Hello, World!')",
-        ]
     
     def _generate_answer_stub(self, question: str) -> str:
         """Generate stub answer for a question.

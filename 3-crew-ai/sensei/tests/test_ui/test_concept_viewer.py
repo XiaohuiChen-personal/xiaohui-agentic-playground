@@ -20,68 +20,30 @@ class TestRenderConcept:
             
             mock_streamlit.markdown.assert_called()
 
-    def test_render_concept_with_key_takeaways(
-        self, mock_streamlit, sample_concept_content, sample_key_takeaways
-    ):
-        """Test rendering concept with key takeaways."""
+    def test_render_concept_with_code_in_markdown(self, mock_streamlit):
+        """Test rendering concept with code blocks embedded in markdown."""
         with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
             from sensei.ui.components.concept_viewer import render_concept
             
+            content_with_code = """
+## Variables
+
+Here's how to create a variable:
+
+```python
+x = 10
+print(x)
+```
+
+And that's it!
+"""
             render_concept(
                 title="Variables",
-                content=sample_concept_content,
-                key_takeaways=sample_key_takeaways,
+                content=content_with_code,
             )
             
-            # Should render divider before takeaways
+            # Streamlit markdown handles code blocks automatically
             mock_streamlit.markdown.assert_called()
-
-    def test_render_concept_with_code_examples(
-        self, mock_streamlit, sample_concept_content, sample_code_examples
-    ):
-        """Test rendering concept with code examples."""
-        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
-            from sensei.ui.components.concept_viewer import render_concept
-            
-            render_concept(
-                title="Variables",
-                content=sample_concept_content,
-                code_examples=sample_code_examples,
-            )
-            
-            # Should render code blocks
-            mock_streamlit.code.assert_called()
-
-    def test_render_concept_single_code_example(self, mock_streamlit):
-        """Test code example with a single string."""
-        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
-            from sensei.ui.components.concept_viewer import render_concept
-            
-            code_examples = ["# Example\nx = 1"]
-            render_concept(
-                title="Test",
-                content="Content",
-                code_examples=code_examples,
-            )
-            
-            mock_streamlit.code.assert_called_once_with("# Example\nx = 1", language="python")
-
-    def test_render_concept_multiple_code_examples(self, mock_streamlit):
-        """Test multiple code examples."""
-        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
-            from sensei.ui.components.concept_viewer import render_concept
-            
-            code_examples = [
-                "x = 1",
-                "y = 2\nprint(y)",
-            ]
-            render_concept(
-                title="Test",
-                content="Content",
-                code_examples=code_examples,
-            )
-            
-            assert mock_streamlit.code.call_count == 2
 
     def test_render_concept_empty_content(self, mock_streamlit):
         """Test rendering concept with empty content."""
@@ -102,6 +64,17 @@ class TestRenderConcept:
             
             # Should render empty content placeholder
             mock_streamlit.markdown.assert_called()
+
+    def test_render_concept_title_displayed(self, mock_streamlit):
+        """Test that concept title is displayed as markdown header."""
+        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
+            from sensei.ui.components.concept_viewer import render_concept
+            
+            render_concept(title="My Title", content="Some content")
+            
+            # First call should be the title
+            calls = mock_streamlit.markdown.call_args_list
+            assert any("## My Title" in str(call) for call in calls)
 
 
 class TestRenderConceptWithNavigation:
@@ -267,41 +240,6 @@ class TestRenderConceptWithNavigation:
             
             mock_streamlit.empty.assert_called()
 
-    def test_render_with_navigation_key_takeaways(
-        self, mock_streamlit, sample_concept_content, sample_key_takeaways
-    ):
-        """Test navigation with key takeaways."""
-        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
-            from sensei.ui.components.concept_viewer import render_concept_with_navigation
-            
-            render_concept_with_navigation(
-                title="Test",
-                content=sample_concept_content,
-                concept_idx=0,
-                total_concepts=5,
-                key_takeaways=sample_key_takeaways,
-            )
-            
-            mock_streamlit.markdown.assert_called()
-
-    def test_render_with_navigation_code_examples(
-        self, mock_streamlit, sample_concept_content, sample_code_examples
-    ):
-        """Test navigation with code examples."""
-        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
-            from sensei.ui.components.concept_viewer import render_concept_with_navigation
-            
-            render_concept_with_navigation(
-                title="Test",
-                content=sample_concept_content,
-                concept_idx=0,
-                total_concepts=5,
-                code_examples=sample_code_examples,
-            )
-            
-            # Code examples should be rendered
-            mock_streamlit.code.assert_called()
-
 
 class TestRenderLessonHeader:
     """Tests for render_lesson_header function."""
@@ -394,39 +332,6 @@ class TestRenderProgressDots:
             from sensei.ui.components.concept_viewer import _render_progress_dots
             
             _render_progress_dots(0, 1)
-            
-            mock_streamlit.markdown.assert_called()
-
-
-class TestRenderKeyTakeaways:
-    """Tests for _render_key_takeaways private function."""
-
-    def test_render_key_takeaways_basic(
-        self, mock_streamlit, sample_key_takeaways
-    ):
-        """Test rendering key takeaways."""
-        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
-            from sensei.ui.components.concept_viewer import _render_key_takeaways
-            
-            _render_key_takeaways(sample_key_takeaways)
-            
-            mock_streamlit.markdown.assert_called()
-
-    def test_render_key_takeaways_single_item(self, mock_streamlit):
-        """Test rendering single takeaway."""
-        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
-            from sensei.ui.components.concept_viewer import _render_key_takeaways
-            
-            _render_key_takeaways(["Single takeaway"])
-            
-            mock_streamlit.markdown.assert_called()
-
-    def test_render_key_takeaways_empty(self, mock_streamlit):
-        """Test rendering empty takeaways."""
-        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
-            from sensei.ui.components.concept_viewer import _render_key_takeaways
-            
-            _render_key_takeaways([])
             
             mock_streamlit.markdown.assert_called()
 

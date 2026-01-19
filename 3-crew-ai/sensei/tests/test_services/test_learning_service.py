@@ -632,30 +632,6 @@ class TestLearningServiceEdgeCases:
         assert "##" in lesson.lesson_content
         assert "###" in lesson.lesson_content
     
-    def test_takeaways_are_list(
-        self, course_with_service
-    ):
-        """Should generate takeaways as a list."""
-        course, service, _ = course_with_service
-        service.start_session(course.id)
-        
-        lesson = service.get_current_concept()
-        
-        assert isinstance(lesson.key_takeaways, list)
-        assert len(lesson.key_takeaways) > 0
-    
-    def test_code_examples_are_list(
-        self, course_with_service
-    ):
-        """Should generate code examples as a list."""
-        course, service, _ = course_with_service
-        service.start_session(course.id)
-        
-        lesson = service.get_current_concept()
-        
-        assert isinstance(lesson.code_examples, list)
-
-
 class TestLearningServiceGetCurrentConceptWithAI:
     """Tests for LearningService.get_current_concept() with AI mode."""
     
