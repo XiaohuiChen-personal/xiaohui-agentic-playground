@@ -130,31 +130,104 @@ def render_lesson_header(
     st.markdown(f"**{module_title}** (Module {module_idx + 1} of {total_modules})")
 
 
-def render_loading_state(message: str = "Generating lesson content...") -> None:
-    """Render a loading state while content is being generated.
+def render_loading_state(
+    message: str = "Generating lesson content...",
+    icon: str = "🥋",
+    estimated_time: str | None = None,
+    tips: list[str] | None = None,
+    show_spinner: bool = True,
+) -> None:
+    """Render an enhanced loading state while AI content is being generated.
+    
+    Provides a visually appealing loading experience with optional
+    estimated wait time and educational tips.
     
     Args:
-        message: Loading message to display.
+        message: Main loading message to display.
+        icon: Emoji icon to show (default: 🥋 Sensei).
+        estimated_time: Optional estimated wait time (e.g., "30-60 seconds").
+        tips: Optional list of tips to display while waiting.
+        show_spinner: Whether to show the spinning indicator.
+    
+    Example:
+        ```python
+        render_loading_state(
+            message="Teaching Crew is preparing your lesson...",
+            icon="📖",
+            estimated_time="30-60 seconds",
+            tips=["Great time to stretch!", "AI is analyzing the best way to explain this"],
+        )
+        ```
     """
     with st.container():
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
+            # Main loading card with animated gradient
             st.markdown(
                 f"""
-                <div style="
+                <style>
+                @keyframes pulse {{
+                    0%, 100% {{ opacity: 1; }}
+                    50% {{ opacity: 0.7; }}
+                }}
+                .loading-card {{
                     text-align: center;
-                    padding: 3rem;
-                    background: #f8f9fa;
-                    border-radius: 10px;
+                    padding: 2.5rem;
+                    background: linear-gradient(135deg, #e8f4fd 0%, #f0f7ff 100%);
+                    border: 1px solid #b8daff;
+                    border-radius: 15px;
                     margin: 2rem 0;
-                ">
-                    <div style="font-size: 3rem; margin-bottom: 1rem;">🥋</div>
-                    <p style="color: #6c757d;">{message}</p>
+                }}
+                .loading-icon {{
+                    font-size: 3.5rem;
+                    margin-bottom: 1rem;
+                    animation: pulse 2s ease-in-out infinite;
+                }}
+                .loading-message {{
+                    color: #004085;
+                    font-size: 1.15rem;
+                    font-weight: 500;
+                    margin: 0.5rem 0;
+                }}
+                .loading-estimate {{
+                    color: #6c757d;
+                    font-size: 0.9rem;
+                    margin-top: 0.5rem;
+                }}
+                </style>
+                <div class="loading-card">
+                    <div class="loading-icon">{icon}</div>
+                    <p class="loading-message">{message}</p>
+                    {f'<p class="loading-estimate">⏱️ Usually takes {estimated_time}</p>' if estimated_time else ''}
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
-            st.spinner("Please wait...")
+            
+            # Show spinner
+            if show_spinner:
+                st.spinner("Please wait...")
+            
+            # Show tips if provided
+            if tips:
+                import random
+                tip = random.choice(tips)
+                st.markdown(
+                    f"""
+                    <div style="
+                        text-align: center;
+                        padding: 1rem;
+                        background: #fff3cd;
+                        border: 1px solid #ffc107;
+                        border-radius: 8px;
+                        margin-top: 1rem;
+                    ">
+                        <span style="font-size: 1rem;">💡</span>
+                        <span style="color: #856404; font-size: 0.9rem;">{tip}</span>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
 
 def _render_progress_dots(current: int, total: int) -> None:

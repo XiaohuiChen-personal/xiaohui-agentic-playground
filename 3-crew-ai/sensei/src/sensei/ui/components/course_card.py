@@ -100,11 +100,15 @@ def render_course_card(
         # Stats row
         col1, col2, col3 = st.columns(3)
         
+        # Get completion counts from progress
+        modules_done = progress.modules_completed if progress else 0
+        concepts_done = progress.concepts_completed if progress else 0
+        
         with col1:
-            st.metric("Modules", f"{total_modules}")
+            st.metric("Modules", f"{modules_done}/{total_modules}")
         
         with col2:
-            st.metric("Concepts", f"{total_concepts}")
+            st.metric("Concepts", f"{concepts_done}/{total_concepts}")
         
         with col3:
             if progress and progress.time_spent_minutes > 0:

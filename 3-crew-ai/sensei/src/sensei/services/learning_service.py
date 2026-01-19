@@ -94,6 +94,16 @@ class LearningService:
         """Get the current session if active."""
         return self._session
     
+    @property
+    def course_data(self) -> dict[str, Any] | None:
+        """Get the current course data if a session is active.
+        
+        Returns:
+            Course data dictionary with title, modules, etc.
+            Returns None if no session is active.
+        """
+        return self._course_data
+    
     def start_session(self, course_id: str) -> LearningSession:
         """Start or resume a learning session for a course.
         

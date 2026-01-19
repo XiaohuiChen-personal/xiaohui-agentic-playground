@@ -294,6 +294,106 @@ class TestRenderLoadingState:
             render_loading_state("Custom loading message...")
             
             mock_streamlit.markdown.assert_called()
+            calls = mock_streamlit.markdown.call_args_list
+            assert any("Custom loading message" in str(c) for c in calls)
+
+    def test_render_loading_custom_icon(self, mock_streamlit):
+        """Test loading state with custom icon."""
+        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
+            from sensei.ui.components.concept_viewer import render_loading_state
+            
+            render_loading_state(message="Test", icon="📝")
+            
+            calls = mock_streamlit.markdown.call_args_list
+            assert any("📝" in str(c) for c in calls)
+
+    def test_render_loading_with_estimated_time(self, mock_streamlit):
+        """Test loading state displays estimated time."""
+        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
+            from sensei.ui.components.concept_viewer import render_loading_state
+            
+            render_loading_state(
+                message="Generating...",
+                estimated_time="30-60 seconds",
+            )
+            
+            calls = mock_streamlit.markdown.call_args_list
+            assert any("30-60 seconds" in str(c) for c in calls)
+
+    def test_render_loading_without_estimated_time(self, mock_streamlit):
+        """Test loading state without estimated time."""
+        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
+            from sensei.ui.components.concept_viewer import render_loading_state
+            
+            render_loading_state(message="Test", estimated_time=None)
+            
+            # Should still render without errors
+            mock_streamlit.markdown.assert_called()
+
+    def test_render_loading_with_tips(self, mock_streamlit):
+        """Test loading state displays tips."""
+        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
+            with patch("random.choice", return_value="Great time to stretch!"):
+                from sensei.ui.components.concept_viewer import render_loading_state
+                
+                render_loading_state(
+                    message="Test",
+                    tips=["Great time to stretch!", "Another tip"],
+                )
+                
+                calls = mock_streamlit.markdown.call_args_list
+                # Should show the tip
+                assert any("stretch" in str(c) for c in calls)
+
+    def test_render_loading_without_tips(self, mock_streamlit):
+        """Test loading state without tips."""
+        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
+            from sensei.ui.components.concept_viewer import render_loading_state
+            
+            render_loading_state(message="Test", tips=None)
+            
+            # Should still render without errors
+            mock_streamlit.markdown.assert_called()
+
+    def test_render_loading_show_spinner_true(self, mock_streamlit):
+        """Test loading state with spinner enabled."""
+        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
+            from sensei.ui.components.concept_viewer import render_loading_state
+            
+            render_loading_state(message="Test", show_spinner=True)
+            
+            mock_streamlit.spinner.assert_called()
+
+    def test_render_loading_show_spinner_false(self, mock_streamlit):
+        """Test loading state with spinner disabled."""
+        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
+            from sensei.ui.components.concept_viewer import render_loading_state
+            
+            render_loading_state(message="Test", show_spinner=False)
+            
+            # Spinner should not be called
+            mock_streamlit.spinner.assert_not_called()
+
+    def test_render_loading_full_options(self, mock_streamlit):
+        """Test loading state with all options enabled."""
+        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
+            with patch("random.choice", return_value="Did you know?"):
+                from sensei.ui.components.concept_viewer import render_loading_state
+                
+                render_loading_state(
+                    message="Teaching Crew is preparing your lesson...",
+                    icon="📖",
+                    estimated_time="30-60 seconds",
+                    tips=["Did you know?", "Another tip"],
+                    show_spinner=True,
+                )
+                
+                calls = mock_streamlit.markdown.call_args_list
+                # Check all components are rendered
+                assert any("Teaching Crew" in str(c) for c in calls)
+                assert any("📖" in str(c) for c in calls)
+                assert any("30-60 seconds" in str(c) for c in calls)
+                assert any("Did you know" in str(c) for c in calls)
 
 
 class TestRenderProgressDots:

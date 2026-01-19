@@ -105,6 +105,38 @@ class TestLearningServiceStartSession:
         
         assert service.is_session_active is True
 
+    def test_course_data_is_none_before_session(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should return None for course_data before session starts."""
+        service = LearningService(database=mock_database, use_ai=False)
+        
+        assert service.course_data is None
+
+    def test_course_data_available_after_session_start(
+        self, course_with_service
+    ):
+        """Should return course data after session starts."""
+        course, service, _ = course_with_service
+        
+        assert service.course_data is None
+        
+        service.start_session(course.id)
+        
+        assert service.course_data is not None
+        assert service.course_data.get("id") == course.id
+        assert service.course_data.get("title") == course.title
+
+    def test_course_data_contains_modules(
+        self, course_with_service
+    ):
+        """Should contain modules in course data."""
+        course, service, _ = course_with_service
+        service.start_session(course.id)
+        
+        assert "modules" in service.course_data
+        assert len(service.course_data["modules"]) > 0
+
 
 class TestLearningServiceGetCurrentConcept:
     """Tests for LearningService.get_current_concept()."""

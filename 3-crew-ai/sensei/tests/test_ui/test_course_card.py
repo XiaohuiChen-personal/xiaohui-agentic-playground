@@ -224,6 +224,74 @@ class TestRenderCourseCard:
             
             mock_streamlit.metric.assert_called()
 
+    def test_render_course_card_shows_completion_counts(
+        self, mock_streamlit, sample_course_outline, sample_progress_partial
+    ):
+        """Test course card displays modules and concepts in X/Y format."""
+        with patch("sensei.ui.components.course_card.st", mock_streamlit):
+            from sensei.ui.components.course_card import render_course_card
+            
+            render_course_card(
+                course=sample_course_outline,
+                progress=sample_progress_partial,
+            )
+            
+            # Check metric calls for completion counts
+            metric_calls = mock_streamlit.metric.call_args_list
+            assert len(metric_calls) >= 2, "Should have at least Modules and Concepts metrics"
+            
+            # First call should be Modules with X/Y format
+            modules_call = metric_calls[0]
+            assert modules_call[0][0] == "Modules"
+            assert "1/3" in modules_call[0][1], f"Expected '1/3' but got {modules_call[0][1]}"
+            
+            # Second call should be Concepts with X/Y format
+            concepts_call = metric_calls[1]
+            assert concepts_call[0][0] == "Concepts"
+            assert "4/9" in concepts_call[0][1], f"Expected '4/9' but got {concepts_call[0][1]}"
+
+    def test_render_course_card_shows_zero_completion(
+        self, mock_streamlit, sample_course_outline, sample_progress_zero
+    ):
+        """Test course card displays 0/X for zero completion."""
+        with patch("sensei.ui.components.course_card.st", mock_streamlit):
+            from sensei.ui.components.course_card import render_course_card
+            
+            render_course_card(
+                course=sample_course_outline,
+                progress=sample_progress_zero,
+            )
+            
+            # Check metric calls for zero completion
+            metric_calls = mock_streamlit.metric.call_args_list
+            
+            modules_call = metric_calls[0]
+            assert "0/3" in modules_call[0][1], f"Expected '0/3' but got {modules_call[0][1]}"
+            
+            concepts_call = metric_calls[1]
+            assert "0/9" in concepts_call[0][1], f"Expected '0/9' but got {concepts_call[0][1]}"
+
+    def test_render_course_card_shows_full_completion(
+        self, mock_streamlit, sample_course_outline, sample_progress_complete
+    ):
+        """Test course card displays X/X for full completion."""
+        with patch("sensei.ui.components.course_card.st", mock_streamlit):
+            from sensei.ui.components.course_card import render_course_card
+            
+            render_course_card(
+                course=sample_course_outline,
+                progress=sample_progress_complete,
+            )
+            
+            # Check metric calls for full completion
+            metric_calls = mock_streamlit.metric.call_args_list
+            
+            modules_call = metric_calls[0]
+            assert "3/3" in modules_call[0][1], f"Expected '3/3' but got {modules_call[0][1]}"
+            
+            concepts_call = metric_calls[1]
+            assert "9/9" in concepts_call[0][1], f"Expected '9/9' but got {concepts_call[0][1]}"
+
     def test_render_course_card_details_button(
         self, mock_streamlit, sample_course_outline, sample_progress_partial
     ):
