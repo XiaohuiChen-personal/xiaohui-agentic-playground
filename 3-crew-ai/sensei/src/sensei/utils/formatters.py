@@ -1,5 +1,6 @@
 """Display formatting utilities for Sensei."""
 
+import re
 from datetime import datetime
 
 
@@ -127,3 +128,52 @@ def format_score(correct: int, total: int) -> str:
     
     percentage = int((correct / total) * 100)
     return f"{correct}/{total} ({percentage}%)"
+
+
+def format_latex_for_streamlit(content: str) -> str:
+    """Convert LaTeX delimiters to Streamlit-compatible format.
+    
+    ChatGPT and other LLMs often return LaTeX math formulas using:
+    - \\(...\\) for inline math
+    - \\[...\\] for display/block math
+    
+    Streamlit's st.markdown() expects:
+    - $...$ for inline math
+    - $$...$$ for block math
+    
+    This function converts the delimiters so formulas render correctly.
+    
+    Args:
+        content: Text content potentially containing LaTeX formulas.
+    
+    Returns:
+        Content with converted LaTeX delimiters.
+    
+    Examples:
+        >>> format_latex_for_streamlit("The formula is \\\\(x^2\\\\)")
+        'The formula is $x^2$'
+        >>> format_latex_for_streamlit("Display: \\\\[E = mc^2\\\\]")
+        'Display: $$E = mc^2$$'
+    """
+    if not content:
+        return content
+    
+    # Convert display/block math: \[...\] -> $$...$$
+    # Use non-greedy matching to handle multiple formulas
+    content = re.sub(
+        r'\\\[(.*?)\\\]',
+        r'$$\1$$',
+        content,
+        flags=re.DOTALL,
+    )
+    
+    # Convert inline math: \(...\) -> $...$
+    # Use non-greedy matching to handle multiple formulas
+    content = re.sub(
+        r'\\\((.*?)\\\)',
+        r'$\1$',
+        content,
+        flags=re.DOTALL,
+    )
+    
+    return content

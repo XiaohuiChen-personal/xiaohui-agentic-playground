@@ -120,6 +120,7 @@ def check_required_api_keys() -> dict[str, bool]:
         "google": bool(os.environ.get("GOOGLE_API_KEY")),
     }
 COURSES_DIR = DATA_DIR / "courses"
+LESSONS_DIR = DATA_DIR / "lessons"  # Cached AI-generated lesson content
 DATABASE_PATH = DATA_DIR / "sensei.db"
 USER_PREFERENCES_PATH = DATA_DIR / "user_preferences.json"
 CHAT_HISTORY_PATH = DATA_DIR / "chat_history.json"

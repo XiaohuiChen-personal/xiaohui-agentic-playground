@@ -209,17 +209,21 @@ def mock_file_storage_paths(tmp_path: Path, monkeypatch):
     
     data_dir = tmp_path / "data"
     courses_dir = data_dir / "courses"
+    lessons_dir = data_dir / "lessons"
     courses_dir.mkdir(parents=True)
+    lessons_dir.mkdir(parents=True)
     
     # Patch the module constants
     monkeypatch.setattr(fs, "DATA_DIR", data_dir)
     monkeypatch.setattr(fs, "COURSES_DIR", courses_dir)
+    monkeypatch.setattr(fs, "LESSONS_DIR", lessons_dir)
     monkeypatch.setattr(fs, "USER_PREFERENCES_PATH", data_dir / "user_preferences.json")
     monkeypatch.setattr(fs, "CHAT_HISTORY_PATH", data_dir / "chat_history.json")
     
     return {
         "data_dir": data_dir,
         "courses_dir": courses_dir,
+        "lessons_dir": lessons_dir,
         "user_preferences_path": data_dir / "user_preferences.json",
         "chat_history_path": data_dir / "chat_history.json",
     }

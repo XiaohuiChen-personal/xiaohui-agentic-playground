@@ -241,6 +241,9 @@ class AssessmentCrew:
     ) -> str:
         """Format detailed quiz results for the evaluation prompt.
         
+        For open-ended questions, flags them for semantic evaluation
+        rather than simple string matching.
+        
         Args:
             quiz: The quiz that was taken.
             answers: Dictionary mapping question_id to user's answer.
@@ -251,13 +254,27 @@ class AssessmentCrew:
         lines = []
         for i, question in enumerate(quiz.questions, 1):
             user_answer = answers.get(question.id, "Not answered")
-            is_correct = user_answer == question.correct_answer
-            status = "✅ Correct" if is_correct else "❌ Incorrect"
             
-            lines.append(f"**Question {i}:** {question.question}")
-            lines.append(f"- Your answer: {user_answer}")
-            lines.append(f"- Correct answer: {question.correct_answer}")
-            lines.append(f"- Status: {status}")
+            # Determine question type and status
+            is_open_ended = question.question_type == QuestionType.OPEN_ENDED
+            
+            if is_open_ended:
+                # Open-ended questions need semantic evaluation
+                status = "📝 NEEDS SEMANTIC EVALUATION"
+                lines.append(f"**Question {i} (Open-Ended):** {question.question}")
+                lines.append(f"- Learner's answer: {user_answer}")
+                lines.append(f"- Sample/expected answer: {question.correct_answer}")
+                lines.append(f"- Status: {status}")
+                lines.append("- **IMPORTANT**: Evaluate if the learner's answer demonstrates understanding of the concept, not exact match.")
+            else:
+                # Multiple choice, true/false, code - use exact matching
+                is_correct = user_answer.strip().lower() == question.correct_answer.strip().lower()
+                status = "✅ Correct" if is_correct else "❌ Incorrect"
+                lines.append(f"**Question {i}:** {question.question}")
+                lines.append(f"- Your answer: {user_answer}")
+                lines.append(f"- Correct answer: {question.correct_answer}")
+                lines.append(f"- Status: {status}")
+            
             lines.append(f"- Concept: {question.concept_id}")
             lines.append("")
         
@@ -463,13 +480,26 @@ class AssessmentCrew:
         if previous_scores is None:
             previous_scores = []
         
-        # Calculate basic stats
+        # Calculate basic stats (excluding open-ended which need semantic evaluation)
+        non_open_ended = [
+            q for q in quiz.questions
+            if q.question_type != QuestionType.OPEN_ENDED
+        ]
+        open_ended_count = len(quiz.questions) - len(non_open_ended)
+        
+        # For non-open-ended, use exact match
         correct_count = sum(
-            1 for q in quiz.questions
-            if answers.get(q.id, "") == q.correct_answer
+            1 for q in non_open_ended
+            if answers.get(q.id, "").strip().lower() == q.correct_answer.strip().lower()
         )
-        incorrect_count = len(quiz.questions) - correct_count
-        score_percentage = int((correct_count / len(quiz.questions)) * 100)
+        incorrect_count = len(non_open_ended) - correct_count
+        
+        # Score percentage (open-ended will be evaluated by AI)
+        if len(non_open_ended) > 0:
+            score_percentage = int((correct_count / len(non_open_ended)) * 100)
+        else:
+            # All questions are open-ended - AI will determine score
+            score_percentage = 0
         
         # Create the agent and task
         analyst = self._create_performance_analyst()
@@ -488,12 +518,15 @@ class AssessmentCrew:
             prev_perf = "This is the first attempt for this module."
         
         # Prepare inputs
+        # Note: For open-ended questions, correct_count only includes non-open-ended
+        # The AI must evaluate open-ended answers semantically and recalculate the final score
         inputs = {
             "module_title": quiz.module_title,
             "total_questions": str(len(quiz.questions)),
             "correct_count": str(correct_count),
             "incorrect_count": str(incorrect_count),
-            "score_percentage": str(score_percentage),
+            "open_ended_count": str(open_ended_count),
+            "score_percentage": f"{score_percentage}% (excluding {open_ended_count} open-ended questions)" if open_ended_count > 0 else f"{score_percentage}%",
             "detailed_results": self._format_detailed_results(quiz, answers),
             "experience_level": format_experience_level(user_prefs.experience_level),
             "learning_style": format_learning_style(user_prefs.learning_style),

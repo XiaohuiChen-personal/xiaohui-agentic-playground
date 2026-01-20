@@ -328,6 +328,9 @@ def _render_multiple_choice(
 ) -> str | None:
     """Render multiple choice options.
     
+    Uses st.selectbox instead of st.radio because selectbox properly
+    supports index=None for "no default selection" state.
+    
     Args:
         question_id: Unique question identifier.
         options: List of answer options.
@@ -336,7 +339,7 @@ def _render_multiple_choice(
         answer_result: Answer result for feedback display.
     
     Returns:
-        Selected option if any.
+        Selected option if any, None if no selection made.
     """
     # Determine which options to highlight
     correct_answer = None
@@ -346,7 +349,11 @@ def _render_multiple_choice(
     # Generate option labels (A, B, C, D, ...)
     labels = [chr(65 + i) for i in range(len(options))]  # A, B, C, D...
     
+    # Create labeled options for display
+    labeled_options = [f"{labels[i]}) {options[i]}" for i in range(len(options))]
+    
     # Find index of selected option
+    # Default to None so no option is pre-selected
     selected_index = None
     if selected:
         try:
@@ -354,16 +361,27 @@ def _render_multiple_choice(
         except ValueError:
             pass
     
-    # Render as radio buttons
-    choice = st.radio(
+    # Render as selectbox (supports index=None for no default selection)
+    # st.radio does NOT support index=None - it always defaults to first option
+    choice = st.selectbox(
         "Select your answer:",
-        options=list(range(len(options))),
-        format_func=lambda i: f"{labels[i]}) {options[i]}",
-        index=selected_index,
+        options=labeled_options,
+        index=selected_index,  # None means no default selection
         key=f"mc_{question_id}",
+        placeholder="Choose an answer...",
         label_visibility="collapsed",
         disabled=show_feedback,
     )
+    
+    # Convert back from labeled option to original option
+    selected_option = None
+    if choice is not None:
+        # Find the index of the selected labeled option
+        try:
+            choice_idx = labeled_options.index(choice)
+            selected_option = options[choice_idx]
+        except (ValueError, IndexError):
+            pass
     
     # Highlight correct/incorrect if showing feedback
     if show_feedback and answer_result and correct_answer:
@@ -373,7 +391,7 @@ def _render_multiple_choice(
             elif selected and option == selected and not answer_result.is_correct:
                 st.error(f"✗ {labels[i]}) {option}")
     
-    return options[choice] if choice is not None else None
+    return selected_option
 
 
 def _render_true_false(

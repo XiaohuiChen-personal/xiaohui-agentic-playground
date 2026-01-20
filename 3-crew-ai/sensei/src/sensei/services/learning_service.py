@@ -23,8 +23,10 @@ from sensei.storage.file_storage import (
     get_module,
     load_chat_history,
     load_course,
+    load_lesson_content,
     load_user_preferences,
     save_chat_history,
+    save_lesson_content,
 )
 from sensei.storage.memory_manager import format_previous_struggles
 
@@ -167,6 +169,11 @@ class LearningService:
     ) -> ConceptLesson:
         """Get the current concept with generated lesson content.
         
+        Lesson content is retrieved in this priority:
+        1. In-memory cache (fastest, for current session)
+        2. Persistent storage (for returning users)
+        3. AI generation (only if not found anywhere)
+        
         When use_ai=True, this uses the TeachingCrew to generate
         personalized lesson content. When use_ai=False, it uses
         stub content for testing.
@@ -200,12 +207,18 @@ class LearningService:
         
         # Get or generate lesson content
         concept_id = concept.get("id", "")
+        course_id = self._session.course_id
         
-        # Check cache first
+        # 1. Check in-memory cache first (fastest)
         if concept_id in self._lesson_cache:
             lesson_content = self._lesson_cache[concept_id]
+        # 2. Check persistent storage (for returning users)
+        elif (stored_content := load_lesson_content(course_id, concept_id)):
+            lesson_content = stored_content
+            # Also add to in-memory cache for faster access
+            self._lesson_cache[concept_id] = lesson_content
+        # 3. Generate with AI (only if not found anywhere)
         elif self._use_ai:
-            # Generate with AI
             if user_prefs is None:
                 prefs_dict = load_user_preferences()
                 user_prefs = (
@@ -214,10 +227,11 @@ class LearningService:
             lesson_content = self._generate_lesson_with_ai(
                 concept, module, user_prefs
             )
-            # Cache the generated lesson
+            # Cache in memory AND persist to storage
             self._lesson_cache[concept_id] = lesson_content
+            save_lesson_content(course_id, concept_id, lesson_content)
         else:
-            # Use stub
+            # Use stub (for testing)
             lesson_content = self._generate_lesson_stub(concept, module)
         
         return ConceptLesson(
@@ -362,6 +376,36 @@ class LearningService:
             last_concept_idx = len(prev_module.get("concepts", [])) - 1
             if last_concept_idx >= 0:
                 self._session.current_concept_idx = last_concept_idx
+        
+        return self.get_current_concept()
+    
+    def next_module(self) -> ConceptLesson | None:
+        """Navigate to the first concept of the next module.
+        
+        Used after passing a module quiz to advance to the next module.
+        
+        Returns:
+            ConceptLesson for the first concept of next module, or None if at course end.
+        
+        Raises:
+            RuntimeError: If no session is active.
+        """
+        if not self._session or not self._course_data:
+            raise RuntimeError("No active learning session")
+        
+        modules = self._course_data.get("modules", [])
+        total_modules = len(modules)
+        
+        # Check if already at last module
+        if self._session.current_module_idx >= total_modules - 1:
+            return None  # At course end
+        
+        # Advance to next module, first concept
+        self._session.current_module_idx += 1
+        self._session.current_concept_idx = 0
+        
+        # Save progress
+        self._save_current_progress()
         
         return self.get_current_concept()
     

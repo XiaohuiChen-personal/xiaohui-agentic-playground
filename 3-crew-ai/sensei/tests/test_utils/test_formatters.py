@@ -8,6 +8,7 @@ from sensei.utils.formatters import (
     format_date,
     format_datetime,
     format_duration,
+    format_latex_for_streamlit,
     format_percentage,
     format_score,
     truncate_text,
@@ -250,3 +251,110 @@ class TestFormatScore:
         """Should handle single question quizzes."""
         assert format_score(1, 1) == "1/1 (100%)"
         assert format_score(0, 1) == "0/1 (0%)"
+
+
+# ==================== TEST: FORMAT LATEX FOR STREAMLIT ====================
+
+
+class TestFormatLatexForStreamlit:
+    """Tests for format_latex_for_streamlit()."""
+    
+    def test_empty_content(self):
+        """Should return empty string for empty input."""
+        assert format_latex_for_streamlit("") == ""
+    
+    def test_none_content(self):
+        """Should return None for None input."""
+        assert format_latex_for_streamlit(None) is None
+    
+    def test_no_latex(self):
+        """Should return unchanged text if no LaTeX."""
+        text = "This is plain text without any formulas."
+        assert format_latex_for_streamlit(text) == text
+    
+    def test_inline_math_conversion(self):
+        """Should convert \\(...\\) to $...$."""
+        assert format_latex_for_streamlit(r"The formula \(x^2\) is simple.") == "The formula $x^2$ is simple."
+    
+    def test_display_math_conversion(self):
+        """Should convert \\[...\\] to $$...$$."""
+        assert format_latex_for_streamlit(r"Display: \[E = mc^2\]") == "Display: $$E = mc^2$$"
+    
+    def test_multiple_inline_formulas(self):
+        """Should convert multiple inline formulas."""
+        text = r"We have \(a\) and \(b\) where \(a + b = c\)."
+        expected = "We have $a$ and $b$ where $a + b = c$."
+        assert format_latex_for_streamlit(text) == expected
+    
+    def test_multiple_display_formulas(self):
+        """Should convert multiple display formulas."""
+        text = r"""First: \[x = 1\]
+Second: \[y = 2\]"""
+        expected = """First: $$x = 1$$
+Second: $$y = 2$$"""
+        assert format_latex_for_streamlit(text) == expected
+    
+    def test_mixed_inline_and_display(self):
+        """Should convert both inline and display formulas."""
+        text = r"Inline \(a\) and display: \[b = a^2\]"
+        expected = "Inline $a$ and display: $$b = a^2$$"
+        assert format_latex_for_streamlit(text) == expected
+    
+    def test_complex_formula(self):
+        """Should handle complex LaTeX formulas."""
+        text = r"The quadratic formula is \(x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}\)."
+        expected = r"The quadratic formula is $x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$."
+        assert format_latex_for_streamlit(text) == expected
+    
+    def test_multiline_display_formula(self):
+        """Should handle multiline display formulas."""
+        text = r"""\[
+\begin{align}
+a &= b + c \\
+d &= e + f
+\end{align}
+\]"""
+        expected = r"""$$
+\begin{align}
+a &= b + c \\
+d &= e + f
+\end{align}
+$$"""
+        assert format_latex_for_streamlit(text) == expected
+    
+    def test_preserves_existing_dollar_signs(self):
+        """Should not affect already-formatted $...$ or $$...$$ formulas."""
+        text = "Already formatted: $x^2$ and $$y^2$$"
+        assert format_latex_for_streamlit(text) == text
+    
+    def test_mixed_old_and_new_format(self):
+        """Should convert old format while preserving new format."""
+        text = r"New: $a$ and old: \(b\)"
+        expected = "New: $a$ and old: $b$"
+        assert format_latex_for_streamlit(text) == expected
+    
+    def test_escaped_backslashes(self):
+        """Should handle content with regular backslashes."""
+        # Regular text with file paths shouldn't be affected
+        text = r"Path: C:\Users\test\file.txt"
+        # Only \( and \[ patterns should be converted
+        assert format_latex_for_streamlit(text) == text
+    
+    def test_partial_delimiters(self):
+        """Should not convert incomplete delimiters."""
+        text = r"Just a backslash \ or paren ( or bracket ["
+        assert format_latex_for_streamlit(text) == text
+    
+    def test_code_with_formulas(self):
+        """Should handle content with code blocks and formulas."""
+        text = r"""Here's the formula \(E = mc^2\) and code:
+```python
+print("Hello")
+```
+Another formula: \[F = ma\]"""
+        expected = r"""Here's the formula $E = mc^2$ and code:
+```python
+print("Hello")
+```
+Another formula: $$F = ma$$"""
+        assert format_latex_for_streamlit(text) == expected

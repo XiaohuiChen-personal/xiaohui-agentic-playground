@@ -5,6 +5,7 @@ This module provides a chat UI for Q&A with the AI tutor including:
 - Input field with send button
 - User/assistant message styling
 - Typing indicators
+- LaTeX math formula rendering
 """
 
 from typing import Callable
@@ -13,6 +14,7 @@ import streamlit as st
 
 from sensei.models.enums import MessageRole
 from sensei.models.schemas import ChatMessage
+from sensei.utils.formatters import format_latex_for_streamlit
 
 
 def render_chat(
@@ -108,11 +110,16 @@ def render_chat_compact(
 def _render_message(message: ChatMessage | dict) -> None:
     """Render a single chat message with styling.
     
+    Handles LaTeX math formulas by converting common delimiters
+    (\\(...\\) and \\[...\\]) to Streamlit-compatible format ($...$ and $$...$$).
+    
     Args:
         message: ChatMessage object or dict with role and content.
     """
     # Handle both ChatMessage objects and dicts
-    if isinstance(message, ChatMessage):
+    # Use duck typing (hasattr) instead of isinstance to handle Streamlit hot reload
+    # where objects created before reload fail isinstance checks
+    if hasattr(message, "role") and hasattr(message, "content"):
         role = message.role
         content = message.content
     else:
@@ -123,25 +130,33 @@ def _render_message(message: ChatMessage | dict) -> None:
             role = MessageRole(role_str) if role_str in ["user", "assistant", "system"] else MessageRole.ASSISTANT
         content = message.get("content", "")
     
+    # Convert LaTeX delimiters for proper rendering
+    formatted_content = format_latex_for_streamlit(content)
+    
     # Use Streamlit's native chat message component
     if role == MessageRole.USER:
         with st.chat_message("user", avatar="👤"):
-            st.markdown(content)
+            st.markdown(formatted_content)
     elif role == MessageRole.ASSISTANT:
         with st.chat_message("assistant", avatar="🥋"):
-            st.markdown(content)
+            st.markdown(formatted_content)
     else:
         # System message - display as info
-        st.info(content)
+        st.info(formatted_content)
 
 
 def _render_message_compact(message: ChatMessage | dict) -> None:
     """Render a message in compact format.
     
+    Note: Compact format uses unsafe_allow_html for styling, which means
+    LaTeX formulas won't render properly in this view. For full LaTeX
+    support, use the standard _render_message function.
+    
     Args:
         message: ChatMessage object or dict.
     """
-    if isinstance(message, ChatMessage):
+    # Use duck typing instead of isinstance to handle Streamlit hot reload
+    if hasattr(message, "role") and hasattr(message, "content"):
         role = message.role
         content = message.content
     else:
@@ -152,7 +167,7 @@ def _render_message_compact(message: ChatMessage | dict) -> None:
     icon = "👤" if role == MessageRole.USER else "🥋"
     role_label = "You" if role == MessageRole.USER else "Sensei"
     
-    # Truncate long messages
+    # Truncate long messages (LaTeX not supported in compact HTML view)
     display_content = content[:200] + "..." if len(content) > 200 else content
     
     st.markdown(

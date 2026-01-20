@@ -370,6 +370,32 @@ class Database:
             results.append(result)
         return results
     
+    def is_module_quiz_passed(self, course_id: str, module_id: str) -> bool | None:
+        """Check if a module quiz has been passed.
+        
+        Args:
+            course_id: The course identifier.
+            module_id: The module identifier.
+        
+        Returns:
+            True if passed, False if taken but not passed, None if not taken.
+        """
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get the most recent quiz result for this module
+            cursor.execute("""
+                SELECT passed FROM quiz_results 
+                WHERE course_id = ? AND module_id = ?
+                ORDER BY completed_at DESC
+                LIMIT 1
+            """, (course_id, module_id))
+            
+            row = cursor.fetchone()
+            if row is None:
+                return None  # Quiz not taken
+            return bool(row["passed"])
+    
     def save_concept_mastery(
         self,
         course_id: str,

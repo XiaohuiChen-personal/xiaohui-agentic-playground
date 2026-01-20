@@ -277,16 +277,21 @@ class QuizService:
         # Store answer
         self._answers[question_id] = answer
         
-        # Check if correct
-        is_correct = self._check_answer(question, answer)
+        # Check if correct (returns None for open-ended questions)
+        is_correct_result = self._check_answer(question, answer)
+        
+        # Determine if this is a pending evaluation (open-ended)
+        is_pending = is_correct_result is None
         
         # Create result
+        # For pending (open-ended), is_correct defaults to False until AI evaluates
         result = AnswerResult(
             question_id=question_id,
             user_answer=answer,
-            is_correct=is_correct,
+            is_correct=is_correct_result if is_correct_result is not None else False,
             correct_answer=question.correct_answer,
-            explanation=question.explanation,
+            explanation=question.explanation if not is_pending else "This answer will be evaluated by AI.",
+            is_pending=is_pending,
         )
         
         self._results.append(result)
@@ -358,15 +363,21 @@ class QuizService:
         Used for quizzes without open-ended questions or when
         AI evaluation is disabled.
         
+        Note: This method should NOT be used when there are pending (open-ended)
+        answers that need AI evaluation. Use _evaluate_with_ai() instead.
+        
         Returns:
             QuizResult with calculated score and stub feedback.
         """
         if not self._current_quiz or not self._course_id:
             raise RuntimeError("No active quiz")
         
-        # Calculate score
+        # Calculate score (exclude pending answers from correct count)
         total = len(self._current_quiz.questions)
-        correct_count = sum(1 for r in self._results if r.is_correct)
+        correct_count = sum(
+            1 for r in self._results 
+            if r.is_correct and not r.is_pending
+        )
         score = correct_count / total if total > 0 else 0.0
         
         # Identify weak concepts (from wrong answers)
@@ -569,21 +580,25 @@ class QuizService:
             created_at=datetime.now(),
         )
     
-    def _check_answer(self, question: QuizQuestion, answer: str) -> bool:
+    def _check_answer(self, question: QuizQuestion, answer: str) -> bool | None:
         """Check if an answer is correct.
         
         For multiple choice and true/false, uses exact matching.
         For code questions, uses normalized comparison.
-        For open-ended questions, returns True (deferred to LLM evaluation
-        in M6 when Assessment Crew integration is complete).
+        For open-ended questions, returns None (deferred to AI evaluation).
         
         Args:
             question: The quiz question.
             answer: The user's answer.
             
         Returns:
-            True if the answer is correct (or deferred for LLM evaluation).
+            True if correct, False if incorrect, None if pending AI evaluation.
         """
+        # For open-ended questions, defer evaluation to Performance Analyst AI
+        # These need semantic evaluation, not exact string matching
+        if question.question_type == QuestionType.OPEN_ENDED:
+            return None  # Pending AI evaluation
+        
         # Normalize both answers for comparison
         normalized_answer = answer.strip().lower()
         normalized_correct = question.correct_answer.strip().lower()
@@ -602,16 +617,6 @@ class QuizService:
             normalized_answer = " ".join(normalized_answer.split())
             normalized_correct = " ".join(normalized_correct.split())
             return normalized_answer == normalized_correct
-        
-        # For open-ended questions, defer evaluation to LLM (Assessment Crew)
-        # In M6, the Performance Analyst will evaluate these semantically.
-        # For now, mark as "needs review" by returning True but flagging
-        # the response for human/LLM evaluation.
-        if question.question_type == QuestionType.OPEN_ENDED:
-            # Open-ended answers are always "submitted" successfully
-            # but actual correctness is determined by Performance Analyst
-            # Return True to not penalize learner for subjective answers
-            return True
         
         # Fallback: exact match for unknown types
         return normalized_answer == normalized_correct

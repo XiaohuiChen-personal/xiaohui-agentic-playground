@@ -550,6 +550,223 @@ class TestAssessmentCrewHelperMethods:
         assert "✅ Correct" in result
         assert "❌ Incorrect" in result
 
+    def test_format_detailed_results_open_ended_question(self):
+        """Should flag open-ended questions for semantic evaluation."""
+        crew = AssessmentCrew()
+        
+        open_ended_question = QuizQuestion(
+            question="Explain recursion in your own words.",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="Recursion is when a function calls itself.",
+            concept_id="concept-1",
+        )
+        
+        quiz = Quiz(
+            module_id="m1",
+            module_title="Test Module",
+            questions=[open_ended_question],
+        )
+        
+        answers = {open_ended_question.id: "It's calling yourself repeatedly."}
+        
+        result = crew._format_detailed_results(quiz, answers)
+        
+        # Should flag for semantic evaluation
+        assert "NEEDS SEMANTIC EVALUATION" in result
+        assert "Open-Ended" in result
+        assert "Learner's answer" in result
+        assert "Sample/expected answer" in result
+        assert "demonstrates understanding" in result.lower()
+
+    def test_format_detailed_results_mixed_question_types(self):
+        """Should handle mix of regular and open-ended questions."""
+        crew = AssessmentCrew()
+        
+        mc_question = QuizQuestion(
+            question="What is 2+2?",
+            question_type=QuestionType.MULTIPLE_CHOICE,
+            options=["3", "4", "5"],
+            correct_answer="4",
+            concept_id="concept-1",
+        )
+        
+        open_ended_question = QuizQuestion(
+            question="Explain your reasoning.",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="Because addition is commutative...",
+            concept_id="concept-2",
+        )
+        
+        quiz = Quiz(
+            module_id="m1",
+            module_title="Test Module",
+            questions=[mc_question, open_ended_question],
+        )
+        
+        answers = {
+            mc_question.id: "4",
+            open_ended_question.id: "I used basic math.",
+        }
+        
+        result = crew._format_detailed_results(quiz, answers)
+        
+        # Multiple choice should have ✅ Correct
+        assert "✅ Correct" in result
+        # Open-ended should have NEEDS SEMANTIC EVALUATION
+        assert "NEEDS SEMANTIC EVALUATION" in result
+
+
+# ==================== TEST: OPEN-ENDED EVALUATION ====================
+
+
+class TestAssessmentCrewOpenEndedEvaluation:
+    """Tests for open-ended question evaluation handling."""
+    
+    def test_evaluate_answers_calculates_open_ended_count(self, valid_evaluation_output):
+        """Should calculate open-ended question count separately."""
+        crew = AssessmentCrew()
+        
+        mc_question = QuizQuestion(
+            question="What is 2+2?",
+            question_type=QuestionType.MULTIPLE_CHOICE,
+            options=["3", "4", "5"],
+            correct_answer="4",
+            concept_id="concept-1",
+        )
+        
+        open_ended_question = QuizQuestion(
+            question="Explain your reasoning.",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="Because...",
+            concept_id="concept-2",
+        )
+        
+        quiz = Quiz(
+            module_id="m1",
+            module_title="Test Module",
+            questions=[mc_question, open_ended_question],
+        )
+        
+        answers = {
+            mc_question.id: "4",
+            open_ended_question.id: "I used math.",
+        }
+        
+        with patch.object(crew, '_create_assessment_crew') as mock_create:
+            mock_result = MagicMock()
+            mock_result.pydantic = valid_evaluation_output
+            mock_crew_instance = MagicMock()
+            mock_crew_instance.kickoff.return_value = mock_result
+            mock_create.return_value = mock_crew_instance
+            
+            crew.evaluate_answers(quiz, answers)
+            
+            # Check that inputs include open_ended_count
+            call_args = mock_crew_instance.kickoff.call_args
+            inputs = call_args.kwargs.get("inputs", {})
+            
+            assert "open_ended_count" in inputs
+            assert inputs["open_ended_count"] == "1"
+
+    def test_evaluate_answers_score_excludes_open_ended(self, valid_evaluation_output):
+        """Preliminary score should exclude open-ended questions."""
+        crew = AssessmentCrew()
+        
+        mc_question = QuizQuestion(
+            question="What is 2+2?",
+            question_type=QuestionType.MULTIPLE_CHOICE,
+            options=["3", "4", "5"],
+            correct_answer="4",
+            concept_id="concept-1",
+        )
+        
+        open_ended_question = QuizQuestion(
+            question="Explain your reasoning.",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="Because...",
+            concept_id="concept-2",
+        )
+        
+        quiz = Quiz(
+            module_id="m1",
+            module_title="Test Module",
+            questions=[mc_question, open_ended_question],
+        )
+        
+        # Answer MC correctly, open-ended doesn't matter for preliminary score
+        answers = {
+            mc_question.id: "4",
+            open_ended_question.id: "Random text",
+        }
+        
+        with patch.object(crew, '_create_assessment_crew') as mock_create:
+            mock_result = MagicMock()
+            mock_result.pydantic = valid_evaluation_output
+            mock_crew_instance = MagicMock()
+            mock_crew_instance.kickoff.return_value = mock_result
+            mock_create.return_value = mock_crew_instance
+            
+            crew.evaluate_answers(quiz, answers)
+            
+            # Check that score percentage only considers non-open-ended
+            call_args = mock_crew_instance.kickoff.call_args
+            inputs = call_args.kwargs.get("inputs", {})
+            
+            # 1 MC correct out of 1 non-open-ended = 100%
+            assert "100%" in inputs["score_percentage"]
+
+    def test_evaluate_answers_all_open_ended_quiz(self, valid_evaluation_output):
+        """Should handle quiz with all open-ended questions."""
+        crew = AssessmentCrew()
+        
+        open_ended_1 = QuizQuestion(
+            question="Explain concept A.",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="Explanation...",
+            concept_id="concept-1",
+        )
+        
+        open_ended_2 = QuizQuestion(
+            question="Explain concept B.",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="Another explanation...",
+            concept_id="concept-2",
+        )
+        
+        quiz = Quiz(
+            module_id="m1",
+            module_title="Test Module",
+            questions=[open_ended_1, open_ended_2],
+        )
+        
+        answers = {
+            open_ended_1.id: "My answer A",
+            open_ended_2.id: "My answer B",
+        }
+        
+        with patch.object(crew, '_create_assessment_crew') as mock_create:
+            mock_result = MagicMock()
+            mock_result.pydantic = valid_evaluation_output
+            mock_crew_instance = MagicMock()
+            mock_crew_instance.kickoff.return_value = mock_result
+            mock_create.return_value = mock_crew_instance
+            
+            crew.evaluate_answers(quiz, answers)
+            
+            call_args = mock_crew_instance.kickoff.call_args
+            inputs = call_args.kwargs.get("inputs", {})
+            
+            # All questions are open-ended
+            assert inputs["open_ended_count"] == "2"
+            # Correct count should be 0 (all pending)
+            assert inputs["correct_count"] == "0"
+
 
 # ==================== TEST: EDGE CASES ====================
 

@@ -276,12 +276,15 @@ class AnswerResult(BaseModel):
     """Result of answering a single quiz question.
     
     Returned after submitting an answer to provide immediate feedback.
+    For open-ended questions, is_pending=True indicates the answer
+    needs AI evaluation (is_correct will be determined later).
     """
     question_id: str = Field(...)
     user_answer: str = Field(...)
-    is_correct: bool = Field(...)
+    is_correct: bool = Field(default=False, description="True if answer is correct (or pending for open-ended)")
     correct_answer: str = Field(...)
     explanation: str = Field(default="")
+    is_pending: bool = Field(default=False, description="True for open-ended questions awaiting AI evaluation")
 
 
 class QuizResult(BaseModel):

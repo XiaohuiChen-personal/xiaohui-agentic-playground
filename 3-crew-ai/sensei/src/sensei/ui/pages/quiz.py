@@ -100,7 +100,7 @@ def render_quiz_page(
     # Progress indicator
     total_questions = len(quiz.questions)
     render_quiz_progress(
-        current_question=current_question_idx + 1,
+        current_question=current_question_idx,  # 0-based index, component adds +1 for display
         total_questions=total_questions,
     )
     
@@ -178,16 +178,58 @@ def _render_question_section(
     if answer_key not in st.session_state:
         st.session_state[answer_key] = None
     
-    # Answer options
+    # Render answer input based on question type
     if question.options:
-        selected = st.radio(
+        # Multiple choice / True-False: Use radio buttons
+        # Note: AI returns options already labeled like "A) Option 1", so we use them directly
+        selected_index = None
+        if st.session_state[answer_key]:
+            try:
+                selected_index = question.options.index(st.session_state[answer_key])
+            except ValueError:
+                pass
+        
+        # Use st.radio with index=None for no default selection
+        selected_option = st.radio(
             "Select your answer:",
             options=question.options,
+            index=selected_index,  # None = no default selection
             key=f"radio_{question.id}",
             disabled=question_answered,
             label_visibility="collapsed",
         )
-        st.session_state[answer_key] = selected
+        
+        # Store the selected option directly
+        st.session_state[answer_key] = selected_option
+    else:
+        # Open-ended / Code questions: Use text area for free-form answers
+        st.markdown("**Your Answer:**")
+        
+        # Get the current answer value (or empty string)
+        current_answer = st.session_state[answer_key] or ""
+        
+        # Determine placeholder based on question type
+        from sensei.models.enums import QuestionType
+        if question.question_type == QuestionType.CODE:
+            placeholder = "Enter your code here..."
+            height = 200
+        else:
+            placeholder = "Type your answer here..."
+            height = 150
+        
+        # Render text area for answer
+        answer_text = st.text_area(
+            "Answer",
+            value=current_answer,
+            placeholder=placeholder,
+            height=height,
+            key=f"text_{question.id}",
+            disabled=question_answered,
+            label_visibility="collapsed",
+        )
+        
+        # Store the answer
+        st.session_state[answer_key] = answer_text if answer_text.strip() else None
     
     st.markdown("<br>", unsafe_allow_html=True)
     
@@ -230,7 +272,40 @@ def _render_answer_feedback(result: AnswerResult, question: QuizQuestion) -> Non
         result: The answer result with correctness.
         question: The original question for correct answer reference.
     """
-    if result.is_correct:
+    from sensei.models.enums import QuestionType
+    
+    # Check if this is a pending answer (open-ended question)
+    # Use getattr for backward compatibility with old AnswerResult objects
+    # that may not have the is_pending field.
+    # Also check question type as fallback for old results that don't have is_pending
+    is_pending = getattr(result, "is_pending", False)
+    
+    # Backward compatibility: if the result doesn't have is_pending but the
+    # question is open-ended, treat it as pending (old results had is_correct=True
+    # for open-ended which was wrong)
+    if not is_pending and question.question_type == QuestionType.OPEN_ENDED:
+        is_pending = True
+    
+    if is_pending:
+        st.markdown(
+            """
+            <div style="
+                background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
+                border: 1px solid #ffc107;
+                border-radius: 10px;
+                padding: 1rem;
+                margin: 1rem 0;
+            ">
+                <span style="font-size: 1.25rem;">📝</span>
+                <strong style="color: #856404; margin-left: 0.5rem;">Answer Submitted</strong>
+                <p style="color: #856404; margin: 0.5rem 0 0 0;">
+                    Your answer will be evaluated by AI when you complete the quiz.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    elif result.is_correct:
         st.markdown(
             """
             <div style="
@@ -266,8 +341,8 @@ def _render_answer_feedback(result: AnswerResult, question: QuizQuestion) -> Non
             unsafe_allow_html=True,
         )
     
-    # Show explanation
-    if result.explanation:
+    # Show explanation (skip for pending answers since AI will provide feedback later)
+    if result.explanation and not is_pending:
         with st.expander("📖 Explanation", expanded=True):
             st.markdown(result.explanation)
 
@@ -435,7 +510,27 @@ def render_quiz_with_services(
         )
         ```
     """
-    # Initialize session state for quiz
+    # Helper function to reset all quiz state
+    def reset_quiz_state():
+        st.session_state["quiz_current_idx"] = 0
+        st.session_state["quiz_last_result"] = None
+        st.session_state["quiz_is_complete"] = False
+        st.session_state["quiz_final_result"] = None
+        st.session_state["quiz_course_id"] = course_id
+        st.session_state["quiz_module_idx"] = module_idx
+        st.session_state["quiz_id"] = None
+        # Clear any previous quiz answers from session state
+        keys_to_remove = [k for k in list(st.session_state.keys()) if k.startswith("quiz_answer_") or k.startswith("radio_")]
+        for k in keys_to_remove:
+            del st.session_state[k]
+    
+    # Initialize session state for quiz tracking
+    if "quiz_course_id" not in st.session_state:
+        st.session_state["quiz_course_id"] = None
+    if "quiz_module_idx" not in st.session_state:
+        st.session_state["quiz_module_idx"] = None
+    if "quiz_id" not in st.session_state:
+        st.session_state["quiz_id"] = None
     if "quiz_current_idx" not in st.session_state:
         st.session_state["quiz_current_idx"] = 0
     if "quiz_last_result" not in st.session_state:
@@ -444,6 +539,47 @@ def render_quiz_with_services(
         st.session_state["quiz_is_complete"] = False
     if "quiz_final_result" not in st.session_state:
         st.session_state["quiz_final_result"] = None
+    
+    # Check for force_new flag - user explicitly clicked "Take Quiz"
+    # This means they want a FRESH quiz, not to resume an existing one
+    force_new = st.session_state.get("quiz", {}).get("force_new", False)
+    if force_new:
+        # Clear the flag first
+        if "quiz" in st.session_state and "force_new" in st.session_state["quiz"]:
+            del st.session_state["quiz"]["force_new"]
+        
+        # End any existing quiz in the quiz service
+        if quiz_service.is_quiz_active:
+            quiz_service.end_quiz()
+        
+        # Reset all quiz state
+        reset_quiz_state()
+    
+    # Determine if we need to reset quiz state (only if not already reset by force_new)
+    elif not force_new:
+        current_quiz_key = (course_id, module_idx)
+        stored_quiz_key = (st.session_state["quiz_course_id"], st.session_state["quiz_module_idx"])
+        
+        # Case 1: Different course/module
+        if current_quiz_key != stored_quiz_key:
+            reset_quiz_state()
+        
+        # Case 2: Quiz service doesn't have an active quiz (need fresh quiz)
+        elif not quiz_service.is_quiz_active:
+            reset_quiz_state()
+        
+        # Case 3: Quiz service has a different quiz than what we're tracking
+        elif quiz_service.current_quiz and quiz_service.current_quiz.id != st.session_state.get("quiz_id"):
+            reset_quiz_state()
+        
+        # Case 4: We have a quiz_current_idx > 0 but no answers stored
+        # This indicates stale state - reset to start fresh
+        elif st.session_state["quiz_current_idx"] > 0:
+            # Check if there are any answers for the current quiz
+            answer_keys = [k for k in st.session_state.keys() if k.startswith("quiz_answer_")]
+            if not answer_keys:
+                # No answers stored but index > 0 - stale state
+                reset_quiz_state()
     
     # Get user preferences
     user_prefs = None
@@ -455,11 +591,24 @@ def render_quiz_with_services(
         with st.spinner("📝 Assessment Crew is creating your quiz..."):
             try:
                 quiz_service.generate_quiz(course_id, module_idx, user_prefs=user_prefs)
-                # Reset state for new quiz
+                
+                # ALWAYS reset all quiz state after generating a new quiz
+                # This is critical - session state may have stale values from previous quizzes
                 st.session_state["quiz_current_idx"] = 0
                 st.session_state["quiz_last_result"] = None
                 st.session_state["quiz_is_complete"] = False
                 st.session_state["quiz_final_result"] = None
+                
+                # Store the quiz ID for tracking
+                if quiz_service.current_quiz:
+                    st.session_state["quiz_id"] = quiz_service.current_quiz.id
+                
+                # Clear any lingering answer keys from previous quiz
+                keys_to_remove = [k for k in list(st.session_state.keys()) 
+                                 if k.startswith("quiz_answer_") or k.startswith("radio_")]
+                for k in keys_to_remove:
+                    del st.session_state[k]
+                    
             except Exception as e:
                 st.error(f"❌ Failed to generate quiz: {str(e)}")
                 return
@@ -469,6 +618,13 @@ def render_quiz_with_services(
         return
     
     quiz = quiz_service.current_quiz
+    
+    # Ensure quiz ID is stored (for existing quizzes)
+    if quiz and st.session_state.get("quiz_id") != quiz.id:
+        st.session_state["quiz_id"] = quiz.id
+        # Also reset index if this is a different quiz
+        st.session_state["quiz_current_idx"] = 0
+        st.session_state["quiz_last_result"] = None
     
     # Define callbacks
     def handle_submit(question_id: str, answer: str) -> AnswerResult:
@@ -505,10 +661,18 @@ def render_quiz_with_services(
         if course_id is not None:
             with st.spinner("🔄 Generating a new quiz..."):
                 quiz_service.generate_quiz(course_id, module_idx, user_prefs=user_prefs)
+            # Update quiz ID
+            if quiz_service.current_quiz:
+                st.session_state["quiz_id"] = quiz_service.current_quiz.id
+            # Reset quiz state using the helper function pattern
             st.session_state["quiz_current_idx"] = 0
             st.session_state["quiz_last_result"] = None
             st.session_state["quiz_is_complete"] = False
             st.session_state["quiz_final_result"] = None
+            # Clear old answer keys
+            keys_to_remove = [k for k in list(st.session_state.keys()) if k.startswith("quiz_answer_") or k.startswith("radio_")]
+            for k in keys_to_remove:
+                del st.session_state[k]
             st.rerun()
     
     # Get module title from quiz

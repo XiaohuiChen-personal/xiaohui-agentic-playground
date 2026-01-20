@@ -60,3 +60,8 @@ fail_under = 90
 
 [project.scripts]
 sensei-test = "pytest:main"
+
+# Note: To run the Streamlit app, use:
+#   streamlit run src/sensei/app.py
+# or:
+#   uv run streamlit run src/sensei/app.py

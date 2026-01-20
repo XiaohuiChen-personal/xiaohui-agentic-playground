@@ -275,6 +275,69 @@ class TestLearningServiceNextConcept:
         assert progress["current_concept_idx"] == 1
 
 
+class TestLearningServiceNextModule:
+    """Tests for LearningService.next_module()."""
+    
+    def test_next_module_advances_to_first_concept(
+        self, course_with_service
+    ):
+        """Should advance to first concept of next module."""
+        course, service, _ = course_with_service
+        service.start_session(course.id)
+        
+        # Go to next module
+        lesson = service.next_module()
+        
+        assert lesson is not None
+        assert lesson.module_idx == 1
+        assert lesson.concept_idx == 0
+    
+    def test_next_module_returns_none_at_last_module(
+        self, course_with_service
+    ):
+        """Should return None when at last module."""
+        course, service, db = course_with_service
+        
+        # Start session first to load course data
+        service.start_session(course.id)
+        
+        # Get total modules
+        modules = service._course_data.get("modules", []) if service._course_data else []
+        total_modules = len(modules)
+        
+        # Move to last module
+        for _ in range(total_modules - 1):
+            service.next_module()
+        
+        # Now try to go beyond the last module
+        lesson = service.next_module()
+        
+        assert lesson is None
+    
+    def test_next_module_saves_progress(
+        self, course_with_service
+    ):
+        """Should save progress to database."""
+        course, service, db = course_with_service
+        service.start_session(course.id)
+        
+        service.next_module()
+        
+        progress = db.get_progress(course.id)
+        assert progress is not None
+        assert progress["current_module_idx"] == 1
+        assert progress["current_concept_idx"] == 0
+    
+    def test_next_module_raises_without_session(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """Should raise RuntimeError without active session."""
+        service = LearningService(database=mock_database)
+        
+        with pytest.raises(RuntimeError, match="No active learning session"):
+            service.next_module()
+
+
 class TestLearningServicePreviousConcept:
     """Tests for LearningService.previous_concept()."""
     
@@ -833,7 +896,7 @@ class TestLearningServiceLessonCache:
     def test_cache_cleared_on_end_session(
         self, course_with_mock_crew
     ):
-        """Should clear cache when session ends."""
+        """Should clear in-memory cache when session ends (persistent storage keeps lesson)."""
         course, service, mock_crew, _ = course_with_mock_crew
         service.start_session(course.id)
         
@@ -845,14 +908,15 @@ class TestLearningServiceLessonCache:
         service.end_session()
         service.start_session(course.id)
         
-        # Should regenerate
+        # With persistent storage, lesson is still available from file
+        # So AI should NOT be called again
         service.get_current_concept()
-        assert mock_crew.teach_concept.call_count == 2
+        assert mock_crew.teach_concept.call_count == 1  # Still 1, loaded from storage
     
     def test_clear_lesson_cache(
         self, course_with_mock_crew
     ):
-        """Should be able to manually clear cache."""
+        """Clearing in-memory cache should reload from persistent storage."""
         course, service, mock_crew, _ = course_with_mock_crew
         service.start_session(course.id)
         
@@ -860,12 +924,12 @@ class TestLearningServiceLessonCache:
         service.get_current_concept()
         assert mock_crew.teach_concept.call_count == 1
         
-        # Clear cache
+        # Clear in-memory cache
         service.clear_lesson_cache()
         
-        # Should regenerate
+        # Should reload from persistent storage, not regenerate
         service.get_current_concept()
-        assert mock_crew.teach_concept.call_count == 2
+        assert mock_crew.teach_concept.call_count == 1  # Still 1, loaded from storage
     
     def test_different_concepts_not_cached_together(
         self, course_with_mock_crew

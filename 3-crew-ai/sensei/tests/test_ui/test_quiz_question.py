@@ -15,7 +15,8 @@ class TestRenderQuestion:
         self, mock_streamlit, sample_quiz_question_mc
     ):
         """Test rendering multiple choice question."""
-        mock_streamlit.radio.return_value = 0
+        # selectbox returns the labeled option string
+        mock_streamlit.selectbox.return_value = "A) 3"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import render_question
@@ -27,14 +28,15 @@ class TestRenderQuestion:
             )
             
             mock_streamlit.markdown.assert_called()
-            mock_streamlit.radio.assert_called()
+            mock_streamlit.selectbox.assert_called()
             assert result is None  # No button click
 
     def test_render_question_true_false(
         self, mock_streamlit, sample_quiz_question_tf
     ):
         """Test rendering true/false question."""
-        mock_streamlit.radio.return_value = 0
+        # True/False now uses selectbox via _render_multiple_choice
+        mock_streamlit.selectbox.return_value = "A) True"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import render_question
@@ -45,14 +47,15 @@ class TestRenderQuestion:
                 total_questions=5,
             )
             
-            mock_streamlit.radio.assert_called()
+            mock_streamlit.selectbox.assert_called()
             assert result is None
 
     def test_render_question_from_dict(
         self, mock_streamlit, sample_quiz_question_dict
     ):
         """Test rendering question from dictionary."""
-        mock_streamlit.radio.return_value = 0
+        # selectbox returns the labeled option string
+        mock_streamlit.selectbox.return_value = "A) abc"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import render_question
@@ -63,14 +66,15 @@ class TestRenderQuestion:
                 total_questions=5,
             )
             
-            mock_streamlit.radio.assert_called()
+            mock_streamlit.selectbox.assert_called()
             assert result is None
 
     def test_render_question_with_submit_callback(
         self, mock_streamlit, sample_quiz_question_mc
     ):
         """Test question with submit callback."""
-        mock_streamlit.radio.return_value = 1  # Select second option ("4")
+        # selectbox returns the labeled option "B) 4" (second option)
+        mock_streamlit.selectbox.return_value = "B) 4"
         mock_streamlit.button.return_value = True  # Submit clicked
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
@@ -91,7 +95,7 @@ class TestRenderQuestion:
         self, mock_streamlit, sample_quiz_question_mc
     ):
         """Test that submit is disabled when no selection."""
-        mock_streamlit.radio.return_value = None
+        mock_streamlit.selectbox.return_value = None
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import render_question
@@ -109,7 +113,7 @@ class TestRenderQuestion:
         self, mock_streamlit, sample_quiz_question_mc, sample_answer_result_correct
     ):
         """Test rendering question with feedback."""
-        mock_streamlit.radio.return_value = 1
+        mock_streamlit.selectbox.return_value = "B) 4"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import render_question
@@ -128,7 +132,7 @@ class TestRenderQuestion:
         self, mock_streamlit, sample_quiz_question_mc, sample_answer_result_incorrect
     ):
         """Test rendering question with incorrect feedback."""
-        mock_streamlit.radio.return_value = 2
+        mock_streamlit.selectbox.return_value = "C) 5"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import render_question
@@ -147,7 +151,7 @@ class TestRenderQuestion:
         self, mock_streamlit, sample_quiz_question_mc
     ):
         """Test rendering with previously selected answer."""
-        mock_streamlit.radio.return_value = 1
+        mock_streamlit.selectbox.return_value = "B) 4"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import render_question
@@ -159,7 +163,7 @@ class TestRenderQuestion:
                 selected_answer="4",
             )
             
-            mock_streamlit.radio.assert_called()
+            mock_streamlit.selectbox.assert_called()
 
     def test_render_question_dict_missing_question_type(self, mock_streamlit):
         """Test question dict without question_type defaults to multiple choice."""
@@ -169,7 +173,7 @@ class TestRenderQuestion:
             "options": ["A", "B", "C"],
             "correct_answer": "B",
         }
-        mock_streamlit.radio.return_value = 0
+        mock_streamlit.selectbox.return_value = "A) A"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import render_question
@@ -180,7 +184,7 @@ class TestRenderQuestion:
                 total_questions=1,
             )
             
-            mock_streamlit.radio.assert_called()
+            mock_streamlit.selectbox.assert_called()
 
     def test_render_question_dict_with_enum_type(self, mock_streamlit):
         """Test question dict with QuestionType enum."""
@@ -191,7 +195,7 @@ class TestRenderQuestion:
             "correct_answer": "A",
             "question_type": QuestionType.MULTIPLE_CHOICE,
         }
-        mock_streamlit.radio.return_value = 0
+        mock_streamlit.selectbox.return_value = "A) A"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import render_question
@@ -202,7 +206,7 @@ class TestRenderQuestion:
                 total_questions=1,
             )
             
-            mock_streamlit.radio.assert_called()
+            mock_streamlit.selectbox.assert_called()
 
 
 class TestRenderQuizProgress:
@@ -269,6 +273,62 @@ class TestRenderQuizProgress:
             )
             
             mock_streamlit.progress.assert_called()
+
+    def test_render_progress_displays_correct_question_number(self, mock_streamlit):
+        """Test that progress displays correct 1-based question number.
+        
+        This test catches the bug where double +1 increment was happening:
+        - Component receives 0-based index
+        - Component should display 1-based number (index + 1)
+        """
+        with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
+            from sensei.ui.components.quiz_question import render_quiz_progress
+            
+            # When current_question=0 (0-based index), should display "Question 1 of 10"
+            render_quiz_progress(
+                current_question=0,
+                total_questions=10,
+            )
+            
+            # Verify markdown was called with "Question 1 of 10"
+            markdown_calls = [str(c) for c in mock_streamlit.markdown.call_args_list]
+            assert any("Question 1 of 10" in call for call in markdown_calls), \
+                f"Expected 'Question 1 of 10' but got: {markdown_calls}"
+
+    def test_render_progress_displays_correct_last_question(self, mock_streamlit):
+        """Test that last question displays correct number.
+        
+        When current_question=9 (0-based, last of 10), should display "Question 10 of 10".
+        NOT "Question 11 of 10" which would indicate double increment.
+        """
+        with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
+            from sensei.ui.components.quiz_question import render_quiz_progress
+            
+            render_quiz_progress(
+                current_question=9,  # 0-based index for question 10
+                total_questions=10,
+            )
+            
+            markdown_calls = [str(c) for c in mock_streamlit.markdown.call_args_list]
+            assert any("Question 10 of 10" in call for call in markdown_calls), \
+                f"Expected 'Question 10 of 10' but got: {markdown_calls}"
+            # Ensure we DON'T have Question 11 (double increment bug)
+            assert not any("Question 11" in call for call in markdown_calls), \
+                "Bug: Double increment detected - showing Question 11 instead of 10"
+
+    def test_render_progress_middle_question(self, mock_streamlit):
+        """Test that middle question displays correctly."""
+        with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
+            from sensei.ui.components.quiz_question import render_quiz_progress
+            
+            render_quiz_progress(
+                current_question=4,  # 0-based index for question 5
+                total_questions=8,
+            )
+            
+            markdown_calls = [str(c) for c in mock_streamlit.markdown.call_args_list]
+            assert any("Question 5 of 8" in call for call in markdown_calls), \
+                f"Expected 'Question 5 of 8' but got: {markdown_calls}"
 
 
 class TestRenderQuizResults:
@@ -538,7 +598,8 @@ class TestRenderMultipleChoice:
 
     def test_render_mc_basic(self, mock_streamlit):
         """Test basic multiple choice rendering."""
-        mock_streamlit.radio.return_value = 0
+        # selectbox returns the labeled option string
+        mock_streamlit.selectbox.return_value = "A) A"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import _render_multiple_choice
@@ -548,12 +609,12 @@ class TestRenderMultipleChoice:
                 options=["A", "B", "C"],
             )
             
-            mock_streamlit.radio.assert_called()
+            mock_streamlit.selectbox.assert_called()
             assert result == "A"
 
     def test_render_mc_with_selected(self, mock_streamlit):
         """Test multiple choice with pre-selected answer."""
-        mock_streamlit.radio.return_value = 1
+        mock_streamlit.selectbox.return_value = "B) B"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import _render_multiple_choice
@@ -568,7 +629,7 @@ class TestRenderMultipleChoice:
 
     def test_render_mc_with_feedback(self, mock_streamlit, sample_answer_result_correct):
         """Test multiple choice with feedback displayed."""
-        mock_streamlit.radio.return_value = 1
+        mock_streamlit.selectbox.return_value = "B) 4"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import _render_multiple_choice
@@ -586,7 +647,7 @@ class TestRenderMultipleChoice:
         self, mock_streamlit, sample_answer_result_incorrect
     ):
         """Test multiple choice with incorrect feedback."""
-        mock_streamlit.radio.return_value = 2  # Selected "5"
+        mock_streamlit.selectbox.return_value = "C) 5"  # Selected "5"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import _render_multiple_choice
@@ -603,7 +664,7 @@ class TestRenderMultipleChoice:
 
     def test_render_mc_invalid_selected(self, mock_streamlit):
         """Test multiple choice with invalid selected option."""
-        mock_streamlit.radio.return_value = 0
+        mock_streamlit.selectbox.return_value = "A) A"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import _render_multiple_choice
@@ -619,7 +680,7 @@ class TestRenderMultipleChoice:
 
     def test_render_mc_no_selection(self, mock_streamlit):
         """Test multiple choice with no selection (None)."""
-        mock_streamlit.radio.return_value = None
+        mock_streamlit.selectbox.return_value = None
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import _render_multiple_choice
@@ -631,25 +692,44 @@ class TestRenderMultipleChoice:
             
             assert result is None
 
+    def test_render_mc_no_default_selection(self, mock_streamlit):
+        """Test that selectbox is called with index=None when no selection provided."""
+        mock_streamlit.selectbox.return_value = None
+        
+        with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
+            from sensei.ui.components.quiz_question import _render_multiple_choice
+            
+            _render_multiple_choice(
+                question_id="q1",
+                options=["A", "B", "C"],
+                selected=None,  # Explicitly no selection
+            )
+            
+            # Verify selectbox was called with index=None (no default selection)
+            mock_streamlit.selectbox.assert_called_once()
+            call_kwargs = mock_streamlit.selectbox.call_args[1]
+            assert call_kwargs.get("index") is None
+
 
 class TestRenderTrueFalse:
     """Tests for _render_true_false private function."""
 
     def test_render_tf_basic(self, mock_streamlit):
         """Test basic true/false rendering."""
-        mock_streamlit.radio.return_value = 0
+        # True/False now uses selectbox via _render_multiple_choice
+        mock_streamlit.selectbox.return_value = "A) True"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import _render_true_false
             
             result = _render_true_false(question_id="q1")
             
-            mock_streamlit.radio.assert_called()
+            mock_streamlit.selectbox.assert_called()
             assert result == "True"
 
     def test_render_tf_false_selected(self, mock_streamlit):
         """Test true/false with False selected."""
-        mock_streamlit.radio.return_value = 1
+        mock_streamlit.selectbox.return_value = "B) False"
         
         with patch("sensei.ui.components.quiz_question.st", mock_streamlit):
             from sensei.ui.components.quiz_question import _render_true_false

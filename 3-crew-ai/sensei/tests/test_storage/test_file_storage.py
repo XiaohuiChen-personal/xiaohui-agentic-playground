@@ -20,10 +20,12 @@ from sensei.storage import file_storage as fs
 class TestEnsureDataDirectories:
     """Tests for ensure_data_directories function."""
     
-    def test_creates_data_and_courses_dirs(self, mock_file_storage_paths):
-        """ensure_data_directories should create data and courses directories."""
+    def test_creates_data_and_courses_and_lessons_dirs(self, mock_file_storage_paths):
+        """ensure_data_directories should create data, courses, and lessons directories."""
         # Clear directories to test creation
         paths = mock_file_storage_paths
+        if paths["lessons_dir"].exists():
+            paths["lessons_dir"].rmdir()
         if paths["courses_dir"].exists():
             paths["courses_dir"].rmdir()
         if paths["data_dir"].exists():
@@ -33,6 +35,7 @@ class TestEnsureDataDirectories:
         
         assert paths["data_dir"].exists()
         assert paths["courses_dir"].exists()
+        assert paths["lessons_dir"].exists()
     
     def test_handles_existing_directories(self, mock_file_storage_paths):
         """ensure_data_directories should handle already existing directories."""
@@ -41,12 +44,14 @@ class TestEnsureDataDirectories:
         # Directories already exist from fixture
         assert paths["data_dir"].exists()
         assert paths["courses_dir"].exists()
+        assert paths["lessons_dir"].exists()
         
         # Should not raise
         fs.ensure_data_directories()
         
         assert paths["data_dir"].exists()
         assert paths["courses_dir"].exists()
+        assert paths["lessons_dir"].exists()
 
 
 class TestSerializeDatetime:
@@ -435,6 +440,203 @@ class TestCourseStructureNavigation:
         """update_course should return False for non-existent course."""
         result = fs.update_course("nonexistent", {"title": "New"})
         assert result is False
+
+
+class TestLessonContentStorage:
+    """Tests for lesson content storage operations (AI-generated lessons)."""
+    
+    def test_save_lesson_content_creates_file(self, mock_file_storage_paths):
+        """save_lesson_content should create a markdown file for the lesson."""
+        fs.save_lesson_content("course-1", "concept-1", "# Lesson Content\n\nHello!")
+        
+        lesson_path = mock_file_storage_paths["lessons_dir"] / "course-1" / "concept-1.md"
+        assert lesson_path.exists()
+        
+        with open(lesson_path, encoding="utf-8") as f:
+            content = f.read()
+        
+        assert content == "# Lesson Content\n\nHello!"
+    
+    def test_save_lesson_content_creates_course_directory(self, mock_file_storage_paths):
+        """save_lesson_content should create course-specific directory."""
+        fs.save_lesson_content("new-course", "concept-1", "Content")
+        
+        course_dir = mock_file_storage_paths["lessons_dir"] / "new-course"
+        assert course_dir.exists()
+        assert course_dir.is_dir()
+    
+    def test_save_lesson_content_overwrites_existing(self, mock_file_storage_paths):
+        """save_lesson_content should overwrite existing lesson file."""
+        fs.save_lesson_content("course-1", "concept-1", "Original content")
+        fs.save_lesson_content("course-1", "concept-1", "Updated content")
+        
+        loaded = fs.load_lesson_content("course-1", "concept-1")
+        assert loaded == "Updated content"
+    
+    def test_save_lesson_content_handles_unicode(self, mock_file_storage_paths):
+        """save_lesson_content should handle unicode content correctly."""
+        content = "# 数学公式\n\n$E = mc^2$\n\nこんにちは"
+        fs.save_lesson_content("course-1", "concept-1", content)
+        
+        loaded = fs.load_lesson_content("course-1", "concept-1")
+        assert loaded == content
+    
+    def test_save_lesson_content_handles_latex(self, mock_file_storage_paths):
+        """save_lesson_content should preserve LaTeX formulas."""
+        content = r"""## Quadratic Formula
+
+The quadratic formula is:
+
+$$x = \frac{-b \pm \sqrt{b^2 - 4ac}}{2a}$$
+
+Where $a$, $b$, and $c$ are coefficients.
+"""
+        fs.save_lesson_content("course-1", "concept-1", content)
+        
+        loaded = fs.load_lesson_content("course-1", "concept-1")
+        assert loaded == content
+        assert r"\frac{-b" in loaded
+    
+    def test_save_lesson_content_multiple_concepts(self, mock_file_storage_paths):
+        """save_lesson_content should handle multiple concepts per course."""
+        fs.save_lesson_content("course-1", "concept-1", "Content 1")
+        fs.save_lesson_content("course-1", "concept-2", "Content 2")
+        fs.save_lesson_content("course-1", "concept-3", "Content 3")
+        
+        course_dir = mock_file_storage_paths["lessons_dir"] / "course-1"
+        lesson_files = list(course_dir.glob("*.md"))
+        
+        assert len(lesson_files) == 3
+        assert fs.load_lesson_content("course-1", "concept-1") == "Content 1"
+        assert fs.load_lesson_content("course-1", "concept-2") == "Content 2"
+        assert fs.load_lesson_content("course-1", "concept-3") == "Content 3"
+    
+    def test_save_lesson_content_multiple_courses(self, mock_file_storage_paths):
+        """save_lesson_content should handle multiple courses."""
+        fs.save_lesson_content("course-1", "concept-1", "Course 1 Content")
+        fs.save_lesson_content("course-2", "concept-1", "Course 2 Content")
+        
+        assert fs.load_lesson_content("course-1", "concept-1") == "Course 1 Content"
+        assert fs.load_lesson_content("course-2", "concept-1") == "Course 2 Content"
+    
+    def test_load_lesson_content_returns_content(self, mock_file_storage_paths):
+        """load_lesson_content should return saved lesson content."""
+        content = "# Test Lesson\n\nThis is test content."
+        fs.save_lesson_content("course-1", "concept-1", content)
+        
+        loaded = fs.load_lesson_content("course-1", "concept-1")
+        
+        assert loaded == content
+    
+    def test_load_lesson_content_returns_none_for_nonexistent_course(
+        self, mock_file_storage_paths
+    ):
+        """load_lesson_content should return None for non-existent course."""
+        result = fs.load_lesson_content("nonexistent-course", "concept-1")
+        assert result is None
+    
+    def test_load_lesson_content_returns_none_for_nonexistent_concept(
+        self, mock_file_storage_paths
+    ):
+        """load_lesson_content should return None for non-existent concept."""
+        fs.save_lesson_content("course-1", "concept-1", "Content")
+        
+        result = fs.load_lesson_content("course-1", "nonexistent-concept")
+        assert result is None
+    
+    def test_load_lesson_content_handles_empty_file(self, mock_file_storage_paths):
+        """load_lesson_content should return empty string for empty file."""
+        fs.save_lesson_content("course-1", "concept-1", "")
+        
+        loaded = fs.load_lesson_content("course-1", "concept-1")
+        assert loaded == ""
+    
+    def test_delete_lesson_content_removes_file(self, mock_file_storage_paths):
+        """delete_lesson_content should remove the lesson file."""
+        fs.save_lesson_content("course-1", "concept-1", "Content")
+        lesson_path = mock_file_storage_paths["lessons_dir"] / "course-1" / "concept-1.md"
+        assert lesson_path.exists()
+        
+        result = fs.delete_lesson_content("course-1", "concept-1")
+        
+        assert result is True
+        assert not lesson_path.exists()
+    
+    def test_delete_lesson_content_returns_false_for_nonexistent(
+        self, mock_file_storage_paths
+    ):
+        """delete_lesson_content should return False for non-existent lesson."""
+        result = fs.delete_lesson_content("nonexistent", "concept-1")
+        assert result is False
+    
+    def test_delete_lesson_content_preserves_other_concepts(
+        self, mock_file_storage_paths
+    ):
+        """delete_lesson_content should not affect other concepts."""
+        fs.save_lesson_content("course-1", "concept-1", "Content 1")
+        fs.save_lesson_content("course-1", "concept-2", "Content 2")
+        
+        fs.delete_lesson_content("course-1", "concept-1")
+        
+        assert fs.load_lesson_content("course-1", "concept-1") is None
+        assert fs.load_lesson_content("course-1", "concept-2") == "Content 2"
+    
+    def test_delete_all_course_lessons_removes_all_lessons(
+        self, mock_file_storage_paths
+    ):
+        """delete_all_course_lessons should remove all lesson files for a course."""
+        fs.save_lesson_content("course-1", "concept-1", "Content 1")
+        fs.save_lesson_content("course-1", "concept-2", "Content 2")
+        fs.save_lesson_content("course-1", "concept-3", "Content 3")
+        
+        count = fs.delete_all_course_lessons("course-1")
+        
+        assert count == 3
+        assert fs.load_lesson_content("course-1", "concept-1") is None
+        assert fs.load_lesson_content("course-1", "concept-2") is None
+        assert fs.load_lesson_content("course-1", "concept-3") is None
+    
+    def test_delete_all_course_lessons_removes_directory(
+        self, mock_file_storage_paths
+    ):
+        """delete_all_course_lessons should remove the course directory if empty."""
+        fs.save_lesson_content("course-1", "concept-1", "Content")
+        course_dir = mock_file_storage_paths["lessons_dir"] / "course-1"
+        assert course_dir.exists()
+        
+        fs.delete_all_course_lessons("course-1")
+        
+        assert not course_dir.exists()
+    
+    def test_delete_all_course_lessons_returns_zero_for_nonexistent(
+        self, mock_file_storage_paths
+    ):
+        """delete_all_course_lessons should return 0 for non-existent course."""
+        count = fs.delete_all_course_lessons("nonexistent")
+        assert count == 0
+    
+    def test_delete_all_course_lessons_preserves_other_courses(
+        self, mock_file_storage_paths
+    ):
+        """delete_all_course_lessons should not affect other courses."""
+        fs.save_lesson_content("course-1", "concept-1", "Course 1 Content")
+        fs.save_lesson_content("course-2", "concept-1", "Course 2 Content")
+        
+        fs.delete_all_course_lessons("course-1")
+        
+        assert fs.load_lesson_content("course-1", "concept-1") is None
+        assert fs.load_lesson_content("course-2", "concept-1") == "Course 2 Content"
+    
+    def test_delete_all_course_lessons_returns_correct_count(
+        self, mock_file_storage_paths
+    ):
+        """delete_all_course_lessons should return the number of files deleted."""
+        fs.save_lesson_content("course-1", "concept-1", "Content 1")
+        fs.save_lesson_content("course-1", "concept-2", "Content 2")
+        
+        count = fs.delete_all_course_lessons("course-1")
+        
+        assert count == 2
 
 
 class TestCountHelpers:

@@ -240,6 +240,70 @@ class TestRenderConceptWithNavigation:
             
             mock_streamlit.empty.assert_called()
 
+    def test_render_with_navigation_is_loading_disables_buttons(
+        self, mock_streamlit, sample_concept_content
+    ):
+        """Test navigation buttons are disabled when is_loading is True."""
+        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
+            from sensei.ui.components.concept_viewer import render_concept_with_navigation
+            
+            render_concept_with_navigation(
+                title="Test",
+                content=sample_concept_content,
+                concept_idx=2,
+                total_concepts=5,
+                is_loading=True,
+            )
+            
+            # Buttons should be called with disabled=True
+            button_calls = mock_streamlit.button.call_args_list
+            assert any(
+                call[1].get("disabled") is True
+                for call in button_calls
+            )
+
+    def test_render_with_navigation_is_loading_shows_loading_label(
+        self, mock_streamlit, sample_concept_content
+    ):
+        """Test navigation buttons show loading label when is_loading is True."""
+        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
+            from sensei.ui.components.concept_viewer import render_concept_with_navigation
+            
+            render_concept_with_navigation(
+                title="Test",
+                content=sample_concept_content,
+                concept_idx=2,
+                total_concepts=5,
+                is_loading=True,
+            )
+            
+            # Buttons should show "Loading..." text
+            button_calls = mock_streamlit.button.call_args_list
+            button_labels = [str(call[0][0]) for call in button_calls if call[0]]
+            assert any("Loading" in label for label in button_labels)
+
+    def test_render_with_navigation_not_loading_buttons_enabled(
+        self, mock_streamlit, sample_concept_content
+    ):
+        """Test navigation buttons are enabled when is_loading is False."""
+        with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
+            from sensei.ui.components.concept_viewer import render_concept_with_navigation
+            
+            render_concept_with_navigation(
+                title="Test",
+                content=sample_concept_content,
+                concept_idx=2,
+                total_concepts=5,
+                is_loading=False,
+            )
+            
+            # Buttons should be called with disabled=False or not set
+            button_calls = mock_streamlit.button.call_args_list
+            assert any(
+                call[1].get("disabled") is False or call[1].get("disabled") is None
+                for call in button_calls
+            )
+
 
 class TestRenderLessonHeader:
     """Tests for render_lesson_header function."""

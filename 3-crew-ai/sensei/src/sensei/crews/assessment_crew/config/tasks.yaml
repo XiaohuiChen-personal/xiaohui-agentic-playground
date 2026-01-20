@@ -72,11 +72,12 @@ evaluate_quiz_task:
     **Quiz Information:**
     - Module: {module_title}
     - Total Questions: {total_questions}
+    - Open-ended questions requiring semantic evaluation: {open_ended_count}
     
-    **Results Summary:**
+    **Results Summary (non-open-ended only):**
     - Correct: {correct_count}
     - Incorrect: {incorrect_count}
-    - Score: {score_percentage}%
+    - Preliminary Score: {score_percentage}
     
     **Detailed Results:**
     {detailed_results}
@@ -89,16 +90,32 @@ evaluate_quiz_task:
     {previous_performance}
     
     Your task:
-    1. Calculate the overall score and pass/fail status (80% to pass)
-    2. Analyze patterns in incorrect answers:
+    1. **IMPORTANT - Evaluate open-ended questions semantically:**
+       - Questions marked "NEEDS SEMANTIC EVALUATION" require your judgment
+       - Do NOT compare exact strings - evaluate if the answer demonstrates understanding
+       - Consider partial credit: Does the answer show conceptual understanding even if incomplete?
+       - Compare against the "Sample/expected answer" as a guide, not an exact match requirement
+       - A learner should be marked correct if they demonstrate understanding of the core concepts
+    
+    2. Calculate the FINAL overall score including ALL questions:
+       - Re-evaluate open-ended answers (marked as "NEEDS SEMANTIC EVALUATION")
+       - Combine with the pre-calculated results for non-open-ended questions
+       - Pass threshold is 80%
+    
+    3. Analyze patterns in incorrect answers:
        - Are mistakes clustered around specific concepts?
        - Are there common types of errors (e.g., off-by-one, scope confusion)?
-    3. Identify specific concepts that need review
-    4. Generate encouraging but honest feedback
-    5. Provide specific recommendations:
+    
+    4. Identify specific concepts that need review
+    
+    5. Generate encouraging but honest feedback:
+       - For open-ended questions, explain what was good and what was missing
+    
+    6. Provide specific recommendations:
        - If passed: Celebrate and preview what's next
        - If failed: Identify exactly what to review and why
-    6. Consider the learner's journey (improvement from past quizzes)
+    
+    7. Consider the learner's journey (improvement from past quizzes)
   expected_output: >
     A JSON object with the following structure:
     

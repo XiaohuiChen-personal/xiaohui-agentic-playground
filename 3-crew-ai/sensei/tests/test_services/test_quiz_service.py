@@ -821,16 +821,20 @@ class TestQuizServiceCodeQuestions:
 
 
 class TestQuizServiceOpenEndedQuestions:
-    """Tests for OPEN_ENDED question type handling."""
+    """Tests for OPEN_ENDED question type handling.
     
-    def test_open_ended_always_returns_true(
+    Open-ended questions are marked as 'pending' and deferred to AI
+    evaluation (Performance Analyst) rather than immediate string matching.
+    """
+    
+    def test_open_ended_returns_pending(
         self, mock_file_storage_paths, mock_database
     ):
-        """Open-ended questions should always return True (deferred to LLM).
+        """Open-ended questions should return is_pending=True for AI evaluation.
         
         The actual evaluation of open-ended answers is deferred to the
-        Performance Analyst (Assessment Crew) in M6. For now, any non-empty
-        answer is accepted.
+        Performance Analyst (Assessment Crew). The answer is marked as
+        pending, not immediately correct/incorrect.
         """
         from sensei.models.enums import QuestionType
         
@@ -855,17 +859,19 @@ class TestQuizServiceOpenEndedQuestions:
         service._current_quiz = quiz
         service._course_id = "test-course"
         
-        # Any answer should be "correct" (deferred evaluation)
+        # Answer should be marked as pending for AI evaluation
         result = service.submit_answer(
             open_question.id,
             "Recursion is calling yourself over and over until you reach a base case."
         )
-        assert result.is_correct is True
+        assert result.is_pending is True
+        assert result.is_correct is False  # Not yet evaluated
+        assert "evaluated by AI" in result.explanation
     
-    def test_open_ended_different_wording_accepted(
+    def test_open_ended_different_wording_is_pending(
         self, mock_file_storage_paths, mock_database
     ):
-        """Differently worded open-ended answers should be accepted."""
+        """Differently worded open-ended answers should be pending."""
         from sensei.models.enums import QuestionType
         
         service = QuizService(database=mock_database)
@@ -889,17 +895,18 @@ class TestQuizServiceOpenEndedQuestions:
         service._current_quiz = quiz
         service._course_id = "test-course"
         
-        # Completely different wording should still be "accepted"
+        # Completely different wording should be marked as pending
         result = service.submit_answer(
             open_question.id,
             "It means one interface can work with many different implementations!"
         )
-        assert result.is_correct is True
+        assert result.is_pending is True
+        assert result.is_correct is False  # Pending AI evaluation
     
-    def test_open_ended_short_answer_accepted(
+    def test_open_ended_short_answer_is_pending(
         self, mock_file_storage_paths, mock_database
     ):
-        """Short open-ended answers should be accepted (evaluation deferred)."""
+        """Short open-ended answers should be marked pending for AI evaluation."""
         from sensei.models.enums import QuestionType
         
         service = QuizService(database=mock_database)
@@ -923,21 +930,18 @@ class TestQuizServiceOpenEndedQuestions:
         service._current_quiz = quiz
         service._course_id = "test-course"
         
-        # Even a very short answer is accepted (LLM will evaluate quality)
+        # Even a very short answer is pending (AI will evaluate quality)
         result = service.submit_answer(
             open_question.id,
             "It cleans up memory."
         )
-        assert result.is_correct is True
+        assert result.is_pending is True
+        assert result.is_correct is False  # Not yet evaluated by AI
     
-    def test_open_ended_not_counted_as_wrong(
+    def test_open_ended_check_answer_returns_none(
         self, mock_file_storage_paths, mock_database
     ):
-        """Open-ended answers should NOT add to weak_concepts.
-        
-        Since open-ended questions return True (deferred evaluation),
-        they shouldn't contribute to the weak concepts list.
-        """
+        """_check_answer should return None for open-ended questions."""
         from sensei.models.enums import QuestionType
         
         service = QuizService(database=mock_database)
@@ -952,21 +956,111 @@ class TestQuizServiceOpenEndedQuestions:
             difficulty=3,
         )
         
+        # _check_answer should return None (pending) for open-ended
+        result = service._check_answer(open_question, "Something about classes and objects")
+        assert result is None
+
+    def test_evaluate_directly_excludes_pending_from_score(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """_evaluate_directly should exclude pending (open-ended) answers from correct count."""
+        from sensei.models.enums import QuestionType
+        
+        service = QuizService(database=mock_database)
+        
+        # Create a quiz with 2 MC questions and 1 open-ended
+        mc_question_1 = QuizQuestion(
+            question="What is 2+2?",
+            question_type=QuestionType.MULTIPLE_CHOICE,
+            options=["3", "4", "5"],
+            correct_answer="4",
+            concept_id="test-concept-1",
+        )
+        
+        mc_question_2 = QuizQuestion(
+            question="What is 3+3?",
+            question_type=QuestionType.MULTIPLE_CHOICE,
+            options=["5", "6", "7"],
+            correct_answer="6",
+            concept_id="test-concept-2",
+        )
+        
+        open_question = QuizQuestion(
+            question="Explain addition.",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="Addition combines numbers.",
+            concept_id="test-concept-3",
+        )
+        
         quiz = Quiz(
             module_id="test-module",
             module_title="Test Module",
-            questions=[open_question],
+            questions=[mc_question_1, mc_question_2, open_question],
         )
         
         service._current_quiz = quiz
         service._course_id = "test-course"
         
-        # Submit any answer
-        service.submit_answer(open_question.id, "Something about classes and objects")
+        # Answer both MC correctly, open-ended with anything
+        service.submit_answer(mc_question_1.id, "4")  # Correct
+        service.submit_answer(mc_question_2.id, "6")  # Correct
+        service.submit_answer(open_question.id, "It adds stuff")  # Pending
         
-        # Should NOT be in weak concepts
-        weak = service.get_weak_concepts()
-        assert "oop-concept" not in weak
+        # Use _evaluate_directly
+        result = service._evaluate_directly()
+        
+        # 2 out of 3 total, but should only count non-pending
+        # 2 MC correct, 1 open-ended pending (is_correct=False, is_pending=True)
+        assert result.correct_count == 2
+        assert result.total_questions == 3
+        # Score should be 2/3 (66.67%)
+        assert result.score == pytest.approx(2/3, rel=0.01)
+
+    def test_evaluate_directly_all_open_ended_gives_zero_score(
+        self, mock_file_storage_paths, mock_database
+    ):
+        """When all questions are open-ended, direct evaluation gives 0% (all pending)."""
+        from sensei.models.enums import QuestionType
+        
+        service = QuizService(database=mock_database)
+        
+        open_question_1 = QuizQuestion(
+            question="Explain concept A.",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="Concept A is...",
+            concept_id="test-concept-1",
+        )
+        
+        open_question_2 = QuizQuestion(
+            question="Explain concept B.",
+            question_type=QuestionType.OPEN_ENDED,
+            options=[],
+            correct_answer="Concept B is...",
+            concept_id="test-concept-2",
+        )
+        
+        quiz = Quiz(
+            module_id="test-module",
+            module_title="Test Module",
+            questions=[open_question_1, open_question_2],
+        )
+        
+        service._current_quiz = quiz
+        service._course_id = "test-course"
+        
+        # Answer both open-ended questions
+        service.submit_answer(open_question_1.id, "My answer A")
+        service.submit_answer(open_question_2.id, "My answer B")
+        
+        # Direct evaluation should give 0% since all are pending
+        result = service._evaluate_directly()
+        
+        # Both are pending, so correct_count is 0
+        assert result.correct_count == 0
+        assert result.total_questions == 2
+        assert result.score == 0.0
 
 
 class TestQuizServiceConceptMastery:

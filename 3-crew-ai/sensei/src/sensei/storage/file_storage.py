@@ -14,6 +14,7 @@ from sensei.utils.constants import (
     CHAT_HISTORY_PATH,
     COURSES_DIR,
     DATA_DIR,
+    LESSONS_DIR,
     USER_PREFERENCES_PATH,
 )
 
@@ -24,9 +25,11 @@ def ensure_data_directories() -> None:
     Creates:
         - data/
         - data/courses/
+        - data/lessons/
     """
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     COURSES_DIR.mkdir(parents=True, exist_ok=True)
+    LESSONS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _serialize_datetime(obj: Any) -> str:
@@ -311,6 +314,103 @@ def update_course(course_id: str, updates: dict[str, Any]) -> bool:
     course.update(updates)
     save_course(course)
     return True
+
+
+# ============================================================================
+# Lesson Content Storage (AI-Generated)
+# ============================================================================
+
+def save_lesson_content(course_id: str, concept_id: str, content: str) -> None:
+    """Save AI-generated lesson content to persistent storage.
+    
+    Stores lesson content so it doesn't need to be regenerated
+    when the user revisits a concept.
+    
+    Args:
+        course_id: The course identifier.
+        concept_id: The concept identifier.
+        content: The generated lesson content (markdown).
+    """
+    ensure_data_directories()
+    
+    # Create course-specific lessons directory
+    course_lessons_dir = LESSONS_DIR / course_id
+    course_lessons_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Save lesson content as a text file (markdown)
+    lesson_path = course_lessons_dir / f"{concept_id}.md"
+    with open(lesson_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+
+def load_lesson_content(course_id: str, concept_id: str) -> str | None:
+    """Load AI-generated lesson content from persistent storage.
+    
+    Args:
+        course_id: The course identifier.
+        concept_id: The concept identifier.
+    
+    Returns:
+        The lesson content (markdown) if found, None otherwise.
+    """
+    lesson_path = LESSONS_DIR / course_id / f"{concept_id}.md"
+    
+    if not lesson_path.exists():
+        return None
+    
+    try:
+        with open(lesson_path, "r", encoding="utf-8") as f:
+            return f.read()
+    except IOError:
+        return None
+
+
+def delete_lesson_content(course_id: str, concept_id: str) -> bool:
+    """Delete stored lesson content for a concept.
+    
+    Useful when user preferences change and lessons need regeneration.
+    
+    Args:
+        course_id: The course identifier.
+        concept_id: The concept identifier.
+    
+    Returns:
+        True if deleted, False if file didn't exist.
+    """
+    lesson_path = LESSONS_DIR / course_id / f"{concept_id}.md"
+    
+    if lesson_path.exists():
+        lesson_path.unlink()
+        return True
+    return False
+
+
+def delete_all_course_lessons(course_id: str) -> int:
+    """Delete all stored lesson content for a course.
+    
+    Args:
+        course_id: The course identifier.
+    
+    Returns:
+        Number of lesson files deleted.
+    """
+    course_lessons_dir = LESSONS_DIR / course_id
+    
+    if not course_lessons_dir.exists():
+        return 0
+    
+    count = 0
+    for lesson_file in course_lessons_dir.glob("*.md"):
+        lesson_file.unlink()
+        count += 1
+    
+    # Remove the directory if empty
+    try:
+        course_lessons_dir.rmdir()
+    except OSError:
+        pass  # Directory not empty or other issue
+    
+    return count
 
 
 # ============================================================================

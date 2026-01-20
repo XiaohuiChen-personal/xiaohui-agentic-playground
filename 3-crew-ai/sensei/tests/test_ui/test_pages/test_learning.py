@@ -320,25 +320,35 @@ class TestRenderChatSection:
                     mock_streamlit.expander.assert_called()
 
 
-class TestRenderQuizPrompt:
-    """Tests for _render_quiz_prompt function."""
+class TestRenderModuleCompleteSection:
+    """Tests for _render_module_complete_section function."""
 
-    def test_render_quiz_prompt_shows_message(self, mock_streamlit):
-        """Test quiz prompt shows completion message."""
+    def test_quiz_not_taken_shows_take_quiz_message(self, mock_streamlit):
+        """Test quiz not taken shows module complete and take quiz button."""
         with patch("sensei.ui.pages.learning.st", mock_streamlit):
-            from sensei.ui.pages.learning import _render_quiz_prompt
+            from sensei.ui.pages.learning import _render_module_complete_section
             
-            _render_quiz_prompt(on_take_quiz=None)
+            _render_module_complete_section(
+                quiz_passed=None,  # Not taken
+                is_last_module=False,
+                on_take_quiz=None,
+                on_next_module=None,
+            )
             
             calls = mock_streamlit.markdown.call_args_list
             assert any("Module Complete" in str(c) for c in calls)
 
-    def test_render_quiz_prompt_shows_button(self, mock_streamlit):
-        """Test quiz prompt shows Take Quiz button."""
+    def test_quiz_not_taken_shows_take_quiz_button(self, mock_streamlit):
+        """Test quiz not taken shows Take Quiz button."""
         with patch("sensei.ui.pages.learning.st", mock_streamlit):
-            from sensei.ui.pages.learning import _render_quiz_prompt
+            from sensei.ui.pages.learning import _render_module_complete_section
             
-            _render_quiz_prompt(on_take_quiz=None)
+            _render_module_complete_section(
+                quiz_passed=None,
+                is_last_module=False,
+                on_take_quiz=None,
+                on_next_module=None,
+            )
             
             button_calls = [
                 c for c in mock_streamlit.button.call_args_list
@@ -346,15 +356,117 @@ class TestRenderQuizPrompt:
             ]
             assert len(button_calls) > 0
 
-    def test_render_quiz_prompt_callback(self, mock_streamlit):
-        """Test quiz prompt triggers callback on click."""
+    def test_quiz_not_taken_callback(self, mock_streamlit):
+        """Test Take Quiz button triggers callback."""
         mock_streamlit.button.return_value = True
         
         with patch("sensei.ui.pages.learning.st", mock_streamlit):
-            from sensei.ui.pages.learning import _render_quiz_prompt
+            from sensei.ui.pages.learning import _render_module_complete_section
             
             callback = MagicMock()
-            _render_quiz_prompt(on_take_quiz=callback)
+            _render_module_complete_section(
+                quiz_passed=None,
+                is_last_module=False,
+                on_take_quiz=callback,
+                on_next_module=None,
+            )
+            
+            callback.assert_called_once()
+
+    def test_quiz_passed_shows_continue_button(self, mock_streamlit):
+        """Test quiz passed shows Continue to Next Module button."""
+        with patch("sensei.ui.pages.learning.st", mock_streamlit):
+            from sensei.ui.pages.learning import _render_module_complete_section
+            
+            _render_module_complete_section(
+                quiz_passed=True,
+                is_last_module=False,
+                on_take_quiz=None,
+                on_next_module=None,
+            )
+            
+            calls = mock_streamlit.markdown.call_args_list
+            assert any("Quiz Passed" in str(c) for c in calls)
+            
+            button_calls = [
+                c for c in mock_streamlit.button.call_args_list
+                if "Continue to Next Module" in str(c)
+            ]
+            assert len(button_calls) > 0
+
+    def test_quiz_passed_next_module_callback(self, mock_streamlit):
+        """Test Continue to Next Module triggers callback."""
+        mock_streamlit.button.return_value = True
+        
+        with patch("sensei.ui.pages.learning.st", mock_streamlit):
+            from sensei.ui.pages.learning import _render_module_complete_section
+            
+            callback = MagicMock()
+            _render_module_complete_section(
+                quiz_passed=True,
+                is_last_module=False,
+                on_take_quiz=None,
+                on_next_module=callback,
+            )
+            
+            callback.assert_called_once()
+
+    def test_quiz_passed_last_module_shows_course_complete(self, mock_streamlit):
+        """Test last module shows Course Complete message."""
+        with patch("sensei.ui.pages.learning.st", mock_streamlit):
+            from sensei.ui.pages.learning import _render_module_complete_section
+            
+            _render_module_complete_section(
+                quiz_passed=True,
+                is_last_module=True,
+                on_take_quiz=None,
+                on_next_module=None,
+            )
+            
+            calls = mock_streamlit.markdown.call_args_list
+            assert any("Course Complete" in str(c) for c in calls)
+            
+            button_calls = [
+                c for c in mock_streamlit.button.call_args_list
+                if "Dashboard" in str(c)
+            ]
+            assert len(button_calls) > 0
+
+    def test_quiz_failed_shows_retake_button(self, mock_streamlit):
+        """Test quiz failed shows Retake Quiz button."""
+        with patch("sensei.ui.pages.learning.st", mock_streamlit):
+            from sensei.ui.pages.learning import _render_module_complete_section
+            
+            _render_module_complete_section(
+                quiz_passed=False,
+                is_last_module=False,
+                on_take_quiz=None,
+                on_next_module=None,
+            )
+            
+            calls = mock_streamlit.markdown.call_args_list
+            assert any("Keep Practicing" in str(c) for c in calls)
+            
+            button_calls = [
+                c for c in mock_streamlit.button.call_args_list
+                if "Retake Quiz" in str(c)
+            ]
+            assert len(button_calls) > 0
+
+    def test_quiz_failed_retake_callback(self, mock_streamlit):
+        """Test Retake Quiz button triggers on_take_quiz callback."""
+        mock_streamlit.button.return_value = True
+        
+        with patch("sensei.ui.pages.learning.st", mock_streamlit):
+            from sensei.ui.pages.learning import _render_module_complete_section
+            
+            callback = MagicMock()
+            _render_module_complete_section(
+                quiz_passed=False,
+                is_last_module=False,
+                on_take_quiz=callback,
+                on_next_module=None,
+            )
             
             callback.assert_called_once()
 
@@ -490,7 +602,7 @@ class TestRenderLearningWithServices:
     def test_render_with_services_shows_spinner_during_lesson_generation(
         self, mock_streamlit
     ):
-        """Test spinner is shown during lesson generation."""
+        """Test spinner is shown during initial lesson loading."""
         with patch("sensei.ui.pages.learning.st", mock_streamlit):
             with patch("sensei.ui.components.sidebar.st", mock_streamlit):
                 with patch("sensei.ui.components.concept_viewer.st", mock_streamlit):
@@ -515,10 +627,44 @@ class TestRenderLearningWithServices:
                             learning_service=mock_learning_service,
                         )
                         
-                        # Verify spinner was called during lesson generation
+                        # Verify spinner was called during lesson loading
                         mock_streamlit.spinner.assert_called()
                         spinner_calls = mock_streamlit.spinner.call_args_list
-                        assert any("Teaching Crew" in str(c) for c in spinner_calls)
+                        # Initial load uses "Loading lesson..." spinner
+                        assert any("Loading lesson" in str(c) for c in spinner_calls)
+
+    def test_render_with_services_shows_loading_state_during_navigation(
+        self, mock_streamlit
+    ):
+        """Test loading state is shown when navigating between concepts."""
+        # Set the navigating flag to True
+        mock_streamlit.session_state = {"learning_is_navigating": True}
+        
+        with patch("sensei.ui.pages.learning.st", mock_streamlit):
+            with patch("sensei.ui.pages.learning.render_loading_state") as mock_loading:
+                with patch("sensei.ui.components.sidebar.st", mock_streamlit):
+                    from sensei.ui.pages.learning import render_learning_with_services
+                    from sensei.models.schemas import ConceptLesson, LearningSession
+                    
+                    mock_learning_service = MagicMock()
+                    mock_learning_service.is_session_active = True
+                    mock_learning_service.current_session = LearningSession(
+                        course_id="test"
+                    )
+                    mock_learning_service.get_current_concept.return_value = ConceptLesson(
+                        concept_id="c1",
+                        concept_title="Test",
+                        lesson_content="Content",
+                    )
+                    
+                    render_learning_with_services(
+                        learning_service=mock_learning_service,
+                    )
+                    
+                    # Verify render_loading_state was called during navigation
+                    mock_loading.assert_called_once()
+                    call_kwargs = mock_loading.call_args[1]
+                    assert "next concept" in call_kwargs["message"]
 
 
 class TestRenderChatSection:

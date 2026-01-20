@@ -438,6 +438,68 @@ class TestQuizResultsOperations:
         history = temp_db.get_all_quiz_history()
         assert history == []
 
+    def test_is_module_quiz_passed_returns_true_when_passed(self, temp_db: Database):
+        """is_module_quiz_passed should return True when quiz passed."""
+        temp_db.save_quiz_result({
+            "course_id": "test-course",
+            "module_id": "module-1",
+            "quiz_id": "quiz-1",
+            "score": 0.85,
+            "correct_count": 17,
+            "total_questions": 20,
+            "passed": True,
+        })
+        
+        result = temp_db.is_module_quiz_passed("test-course", "module-1")
+        assert result is True
+
+    def test_is_module_quiz_passed_returns_false_when_failed(self, temp_db: Database):
+        """is_module_quiz_passed should return False when quiz not passed."""
+        temp_db.save_quiz_result({
+            "course_id": "test-course",
+            "module_id": "module-1",
+            "quiz_id": "quiz-1",
+            "score": 0.65,
+            "correct_count": 13,
+            "total_questions": 20,
+            "passed": False,
+        })
+        
+        result = temp_db.is_module_quiz_passed("test-course", "module-1")
+        assert result is False
+
+    def test_is_module_quiz_passed_returns_none_when_not_taken(self, temp_db: Database):
+        """is_module_quiz_passed should return None when quiz not taken."""
+        result = temp_db.is_module_quiz_passed("test-course", "nonexistent-module")
+        assert result is None
+
+    def test_is_module_quiz_passed_returns_most_recent_result(self, temp_db: Database):
+        """is_module_quiz_passed should return most recent quiz result."""
+        # First attempt - failed
+        temp_db.save_quiz_result({
+            "course_id": "test-course",
+            "module_id": "module-1",
+            "quiz_id": "quiz-1",
+            "score": 0.65,
+            "correct_count": 13,
+            "total_questions": 20,
+            "passed": False,
+        })
+        
+        # Second attempt - passed
+        temp_db.save_quiz_result({
+            "course_id": "test-course",
+            "module_id": "module-1",
+            "quiz_id": "quiz-2",
+            "score": 0.90,
+            "correct_count": 18,
+            "total_questions": 20,
+            "passed": True,
+        })
+        
+        result = temp_db.is_module_quiz_passed("test-course", "module-1")
+        assert result is True  # Most recent attempt passed
+
 
 class TestConceptMasteryOperations:
     """Tests for concept mastery tracking."""

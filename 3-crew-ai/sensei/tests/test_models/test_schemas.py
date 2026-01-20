@@ -402,6 +402,46 @@ class TestAnswerResult:
         )
         assert result.is_correct is True
 
+    def test_is_pending_default_false(self):
+        """Test that is_pending defaults to False."""
+        result = AnswerResult(
+            question_id="q1",
+            user_answer="My answer",
+            is_correct=False,
+            correct_answer="Expected answer",
+        )
+        assert result.is_pending is False
+
+    def test_is_pending_true_for_open_ended(self):
+        """Test creating a pending result for open-ended questions."""
+        result = AnswerResult(
+            question_id="q1",
+            user_answer="My explanation of the concept...",
+            is_correct=False,  # Not yet evaluated
+            correct_answer="Sample answer",
+            explanation="This answer will be evaluated by AI.",
+            is_pending=True,
+        )
+        assert result.is_pending is True
+        assert result.is_correct is False  # Not evaluated yet
+
+    def test_answer_result_with_all_fields(self):
+        """Test AnswerResult with all fields specified."""
+        result = AnswerResult(
+            question_id="q123",
+            user_answer="User's response",
+            is_correct=True,
+            correct_answer="Correct response",
+            explanation="Great job!",
+            is_pending=False,
+        )
+        assert result.question_id == "q123"
+        assert result.user_answer == "User's response"
+        assert result.is_correct is True
+        assert result.correct_answer == "Correct response"
+        assert result.explanation == "Great job!"
+        assert result.is_pending is False
+
 
 # =============================================================================
 # User & Session Schema Tests (Subtask 3.4)
