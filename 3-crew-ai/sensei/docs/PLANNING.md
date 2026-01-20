@@ -1358,9 +1358,9 @@ Create comprehensive integration test suite for CI/CD.
   □ 8.6 Implement Settings Page
   □ 8.7 Implement Onboarding Page
 
-□ Milestone 9: Core App & Documentation
+☑ Milestone 9: Core App & Documentation
   ☑ 9.1 Main App Entry Point
-  □ 9.2 README Documentation
+  ☑ 9.2 README Documentation
 
 □ Milestone 10: End-to-End Integration & Polish
   □ 10.1 End-to-End Course Creation Flow
