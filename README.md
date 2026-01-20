@@ -21,7 +21,7 @@ This repository contains experiments with different agentic design patterns for 
 
 - **Python 3.12+**
 - **[UV](https://docs.astral.sh/uv/)** - Fast Python package installer and resolver
-- **API Keys** - OpenAI and Anthropic API keys
+- **API Keys** - OpenAI, Anthropic, and Google AI API keys
 
 ## Quick Start
 
@@ -83,6 +83,7 @@ Your `.env` file should contain:
 ```
 OPENAI_API_KEY=your_openai_api_key_here
 ANTHROPIC_API_KEY=your_anthropic_api_key_here
+GOOGLE_API_KEY=your_google_api_key_here
 RAPID_API_KEY=your_rapid_api_key_here
 ```
 
@@ -115,7 +116,12 @@ xiaohui-agentic-playground/
 ├── 3-crew-ai/
 │   ├── email_battle/            # CrewAI implementation
 │   │   └── README.md            # Detailed documentation
-│   └── smart_shopping_assistant/ # CrewAI Flow implementation
+│   ├── smart_shopping_assistant/ # CrewAI Flow implementation
+│   │   └── README.md            # Detailed documentation
+│   └── sensei/                  # AI-powered adaptive learning tutor
+│       ├── src/sensei/          # Main application code
+│       ├── tests/               # Comprehensive test suite
+│       ├── docs/                # Design documents & screenshots
 │       └── README.md            # Detailed documentation
 ├── 4-langgraph/
 │   └── email_battle/            # LangGraph implementation
@@ -151,6 +157,9 @@ xiaohui-agentic-playground/
 | `autogen-core` | Microsoft AutoGen core framework |
 | `autogen-ext` | Microsoft AutoGen extensions |
 | `python-dotenv` | Load environment variables from `.env` |
+| `crewai` | CrewAI multi-agent framework |
+| `streamlit` | Web application framework for Sensei UI |
+| `litellm` | Universal LLM interface (OpenAI, Anthropic, Google) |
 | `datasets` | HuggingFace Datasets (for AG News dataset) |
 | `scikit-learn` | Metrics and evaluation |
 | `ipykernel` | Jupyter kernel support |
@@ -257,7 +266,40 @@ The Smart Shopping Assistant reimplemented using **CrewAI Flow**, demonstrating 
 
 ---
 
-### 6. Email Battle (LangGraph)
+### 6. Sensei - AI-Powered Adaptive Learning Tutor (CrewAI)
+
+📁 [`3-crew-ai/sensei/`](3-crew-ai/sensei/)
+
+An **intelligent tutoring system** that creates personalized learning experiences using CrewAI's multi-agent framework. Tell Sensei what you want to learn, and it generates a structured curriculum, teaches concepts interactively, answers questions, and assesses understanding through adaptive quizzes.
+
+| Crew | Agents | Models | Purpose |
+|------|--------|--------|---------|
+| **Curriculum Crew** | Curriculum Architect, Content Researcher | Claude Opus 4.5, Gemini 3 Pro | Plans course structure and expands modules in parallel |
+| **Teaching Crew** | Knowledge Teacher, Q&A Mentor | Claude Opus 4.5, GPT 5.2 | Generates lessons and answers student questions |
+| **Assessment Crew** | Quiz Designer, Performance Analyst | Claude Opus 4.5, GPT 5.2 | Creates quizzes and provides intelligent feedback |
+
+**Key Features:**
+- 📚 Custom curriculum generation for any topic
+- 🎓 Interactive lessons with code examples and key takeaways
+- 💬 "Ask Sensei Anything" Q&A during learning
+- 📝 Adaptive quizzes with multiple question types
+- 📊 Intelligent feedback identifying strengths and weak areas
+- 📈 Progress tracking across all courses
+
+**Tech Stack:** CrewAI • Streamlit • Claude Opus 4.5 • GPT 5.2 • Gemini 3 Pro • Pydantic • SQLite
+
+**Run:**
+```bash
+cd 3-crew-ai/sensei
+uv sync
+uv run streamlit run src/sensei/app.py
+```
+
+➡️ **[See full documentation](3-crew-ai/sensei/README.md)**
+
+---
+
+### 7. Email Battle (LangGraph)
 
 📁 [`4-langgraph/email_battle/`](4-langgraph/email_battle/)
 
@@ -295,7 +337,7 @@ uv run python app.py
 
 ---
 
-### 7. Email Battle (AutoGen)
+### 8. Email Battle (AutoGen)
 
 📁 [`5-autogen/email_battle/`](5-autogen/email_battle/)
 
