@@ -18,8 +18,8 @@
 8. [Milestone 6: Service-Crew Integration](#8-milestone-6-service-crew-integration)
 9. [Milestone 7: UI Components](#9-milestone-7-ui-components)
 10. [Milestone 8: UI Pages](#10-milestone-8-ui-pages)
-11. [Milestone 9: End-to-End Integration](#11-milestone-9-end-to-end-integration)
-12. [Milestone 10: Polish & Documentation](#12-milestone-10-polish--documentation)
+11. [Milestone 9: Core App & Documentation](#11-milestone-9-core-app--documentation)
+12. [Milestone 10: End-to-End Integration & Polish](#12-milestone-10-end-to-end-integration--polish)
 13. [Testing Strategy](#13-testing-strategy)
 14. [Risk & Dependencies](#14-risk--dependencies)
 
@@ -63,8 +63,8 @@ This document breaks down the Sensei implementation into **10 milestones** with 
 | **M6** | Service-Crew Integration | 4 | 6 hours | M4, M5 |
 | **M7** | UI Components | 5 | 5 hours | M3 |
 | **M8** | UI Pages | 7 | 8 hours | M4, M7 |
-| **M9** | End-to-End Integration | 4 | 6 hours | M6, M8 |
-| **M10** | Polish & Documentation | 4 | 4 hours | M9 |
+| **M9** | Core App & Documentation | 2 | 3 hours | M6, M8 |
+| **M10** | End-to-End Integration & Polish | 6 | 7 hours | M9 |
 
 **Total Estimated Effort: ~52 hours**
 
@@ -1053,14 +1053,14 @@ Implement `ui/pages/onboarding.py` for first-time users.
 
 ---
 
-## 11. Milestone 9: End-to-End Integration
+## 11. Milestone 9: Core App & Documentation
 
 ### Objective
-Connect all layers and verify complete user flows work correctly.
+Implement the main application entry point and create comprehensive documentation.
 
 ---
 
-### Subtask 9.1: Main App Entry Point
+### Subtask 9.1: Main App Entry Point ✅
 
 **Description:**  
 Implement `app.py` with routing and initialization.
@@ -1083,107 +1083,7 @@ Implement `app.py` with routing and initialization.
 
 ---
 
-### Subtask 9.2: End-to-End Course Creation Flow
-
-**Description:**  
-Test complete flow from topic input to course creation.
-
-**Test Plan:**
-
-| Test Type | Test Case | Expected Result |
-|-----------|-----------|-----------------|
-| E2E | Enter topic, generate course | Course created and saved |
-| E2E | Course appears in dashboard | Listed with 0% progress |
-| E2E | Course structure complete | Modules and concepts present |
-| E2E | Can start learning | Learning page loads |
-
----
-
-### Subtask 9.3: End-to-End Learning Flow
-
-**Description:**  
-Test complete learning session flow.
-
-**Test Plan:**
-
-| Test Type | Test Case | Expected Result |
-|-----------|-----------|-----------------|
-| E2E | Start learning session | First concept displayed |
-| E2E | Navigate through concepts | All concepts accessible |
-| E2E | Ask question | Answer returned |
-| E2E | Complete module | Quiz button appears |
-| E2E | Progress updates | Dashboard shows progress |
-
----
-
-### Subtask 9.4: End-to-End Quiz Flow
-
-**Description:**  
-Test complete quiz and evaluation flow.
-
-**Test Plan:**
-
-| Test Type | Test Case | Expected Result |
-|-----------|-----------|-----------------|
-| E2E | Take quiz | Questions displayed |
-| E2E | Submit all answers | Results shown |
-| E2E | Pass quiz | Next module unlocked |
-| E2E | Fail quiz | Review recommended |
-| E2E | Quiz history | Saved to progress page |
-
----
-
-## 12. Milestone 10: Polish & Documentation
-
-### Objective
-Final polish, error handling, and documentation.
-
----
-
-### Subtask 10.1: Error Handling & Edge Cases
-
-**Description:**  
-Add comprehensive error handling throughout the application.
-
-**Deliverables:**
-- Service error handling
-- UI error displays
-- Graceful degradation
-- Retry logic for AI calls
-
-**Test Plan:**
-
-| Test Type | Test Case | Expected Result |
-|-----------|-----------|-----------------|
-| Unit | Service throws exception | Caught and handled |
-| Unit | AI call fails | User-friendly error |
-| Unit | Invalid data | Validation errors shown |
-| Integration | Network failure | App remains functional |
-
----
-
-### Subtask 10.2: Loading States & UX Polish
-
-**Description:**  
-Add loading indicators and polish user experience.
-
-**Deliverables:**
-- Loading spinners for AI operations
-- Progress bars for long operations
-- Smooth transitions
-- Helpful empty states
-
-**Test Plan:**
-
-| Test Type | Test Case | Expected Result |
-|-----------|-----------|-----------------|
-| Manual | Course generation | Loading indicator visible |
-| Manual | Quiz generation | Progress shown |
-| Manual | Empty course list | Helpful message displayed |
-
----
-
-### Subtask 10.3: README Documentation
+### Subtask 9.2: README Documentation
 
 **Description:**  
 Create comprehensive README with installation and usage instructions.
@@ -1205,7 +1105,107 @@ Create comprehensive README with installation and usage instructions.
 
 ---
 
-### Subtask 10.4: Final Integration Test Suite
+## 12. Milestone 10: End-to-End Integration & Polish
+
+### Objective
+Verify complete user flows work correctly and add final polish.
+
+---
+
+### Subtask 10.1: End-to-End Course Creation Flow
+
+**Description:**  
+Test complete flow from topic input to course creation.
+
+**Test Plan:**
+
+| Test Type | Test Case | Expected Result |
+|-----------|-----------|-----------------|
+| E2E | Enter topic, generate course | Course created and saved |
+| E2E | Course appears in dashboard | Listed with 0% progress |
+| E2E | Course structure complete | Modules and concepts present |
+| E2E | Can start learning | Learning page loads |
+
+---
+
+### Subtask 10.2: End-to-End Learning Flow
+
+**Description:**  
+Test complete learning session flow.
+
+**Test Plan:**
+
+| Test Type | Test Case | Expected Result |
+|-----------|-----------|-----------------|
+| E2E | Start learning session | First concept displayed |
+| E2E | Navigate through concepts | All concepts accessible |
+| E2E | Ask question | Answer returned |
+| E2E | Complete module | Quiz button appears |
+| E2E | Progress updates | Dashboard shows progress |
+
+---
+
+### Subtask 10.3: End-to-End Quiz Flow
+
+**Description:**  
+Test complete quiz and evaluation flow.
+
+**Test Plan:**
+
+| Test Type | Test Case | Expected Result |
+|-----------|-----------|-----------------|
+| E2E | Take quiz | Questions displayed |
+| E2E | Submit all answers | Results shown |
+| E2E | Pass quiz | Next module unlocked |
+| E2E | Fail quiz | Review recommended |
+| E2E | Quiz history | Saved to progress page |
+
+---
+
+### Subtask 10.4: Error Handling & Edge Cases
+
+**Description:**  
+Add comprehensive error handling throughout the application.
+
+**Deliverables:**
+- Service error handling
+- UI error displays
+- Graceful degradation
+- Retry logic for AI calls
+
+**Test Plan:**
+
+| Test Type | Test Case | Expected Result |
+|-----------|-----------|-----------------|
+| Unit | Service throws exception | Caught and handled |
+| Unit | AI call fails | User-friendly error |
+| Unit | Invalid data | Validation errors shown |
+| Integration | Network failure | App remains functional |
+
+---
+
+### Subtask 10.5: Loading States & UX Polish
+
+**Description:**  
+Add loading indicators and polish user experience.
+
+**Deliverables:**
+- Loading spinners for AI operations
+- Progress bars for long operations
+- Smooth transitions
+- Helpful empty states
+
+**Test Plan:**
+
+| Test Type | Test Case | Expected Result |
+|-----------|-----------|-----------------|
+| Manual | Course generation | Loading indicator visible |
+| Manual | Quiz generation | Progress shown |
+| Manual | Empty course list | Helpful message displayed |
+
+---
+
+### Subtask 10.6: Final Integration Test Suite
 
 **Description:**  
 Create comprehensive integration test suite for CI/CD.
@@ -1358,17 +1358,17 @@ Create comprehensive integration test suite for CI/CD.
   □ 8.6 Implement Settings Page
   □ 8.7 Implement Onboarding Page
 
-□ Milestone 9: End-to-End Integration
-  □ 9.1 Main App Entry Point
-  □ 9.2 End-to-End Course Creation Flow
-  □ 9.3 End-to-End Learning Flow
-  □ 9.4 End-to-End Quiz Flow
+□ Milestone 9: Core App & Documentation
+  ☑ 9.1 Main App Entry Point
+  □ 9.2 README Documentation
 
-□ Milestone 10: Polish & Documentation
-  □ 10.1 Error Handling & Edge Cases
-  □ 10.2 Loading States & UX Polish
-  □ 10.3 README Documentation
-  □ 10.4 Final Integration Test Suite
+□ Milestone 10: End-to-End Integration & Polish
+  □ 10.1 End-to-End Course Creation Flow
+  □ 10.2 End-to-End Learning Flow
+  □ 10.3 End-to-End Quiz Flow
+  □ 10.4 Error Handling & Edge Cases
+  □ 10.5 Loading States & UX Polish
+  □ 10.6 Final Integration Test Suite
 ```
 
 ---
