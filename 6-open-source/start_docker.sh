@@ -63,7 +63,7 @@ show_help() {
     echo -e "${GREEN}============================================${NC}"
     echo ""
     echo "Usage:"
-    echo "  $0 start [single|dual]  Start model server(s)"
+    echo "  $0 start [mode]         Start model server(s)"
     echo "  $0 stop                 Stop all servers"
     echo "  $0 status               Show server status"
     echo "  $0 logs [container]     Show logs (follow mode)"
@@ -73,11 +73,13 @@ show_help() {
     echo "  single   - Run one 70B model (Llama 3.3 70B NVFP4) on port 8000"
     echo "  dual     - Run two medium models (Mistral 24B + Qwen3 32B) on ports 8000/8001"
     echo "  gpt-oss  - Run GPT-OSS-20B (MXFP4) optimized for batch inference"
+    echo "  qwen7b   - Run Qwen2.5-7B (dense) for fine-tuning practice"
     echo ""
     echo "Examples:"
     echo "  $0 start single    # Start single 70B model"
     echo "  $0 start dual      # Start dual medium models"
     echo "  $0 start gpt-oss   # Start GPT-OSS-20B for fine-tuning/batch inference"
+    echo "  $0 start qwen7b    # Start Qwen2.5-7B for fine-tuning practice"
     echo "  $0 logs            # Follow all logs"
     echo "  $0 stop            # Stop all containers"
     echo ""
@@ -97,9 +99,13 @@ set_mode() {
             COMPOSE_FILE="docker-compose-gpt-oss.yml"
             MODE="gpt-oss"
             ;;
+        qwen7b|qwen|7b)
+            COMPOSE_FILE="docker-compose-qwen7b.yml"
+            MODE="qwen7b"
+            ;;
         *)
             echo -e "${RED}Unknown mode: $1${NC}"
-            echo "Use 'single', 'dual', or 'gpt-oss'"
+            echo "Use 'single', 'dual', 'gpt-oss', or 'qwen7b'"
             exit 1
             ;;
     esac
@@ -121,6 +127,7 @@ start_servers() {
         docker compose -f docker-compose-single.yml down 2>/dev/null || true
         docker compose -f docker-compose-dual-medium.yml down 2>/dev/null || true
         docker compose -f docker-compose-gpt-oss.yml down 2>/dev/null || true
+        docker compose -f docker-compose-qwen7b.yml down 2>/dev/null || true
         echo ""
     fi
     
@@ -201,6 +208,24 @@ start_servers() {
         echo "  $0 status  - Check if server is ready"
         echo "  $0 logs    - View download/startup progress"
         echo "  $0 stop    - Stop server"
+    elif [ "$MODE" = "qwen7b" ]; then
+        echo -e "${GREEN}Server starting!${NC}"
+        echo ""
+        echo "Model: Qwen2.5-7B-Instruct (Dense 7B, ~14 GB download)"
+        echo ""
+        echo "Configuration:"
+        echo "  - Architecture: Dense Transformer (7B parameters)"
+        echo "  - Context Window: 32K tokens (max 128K)"
+        echo "  - Batch Size: 64 concurrent sequences"
+        echo "  - Use Case: Fine-tuning practice + inference baseline"
+        echo ""
+        echo "Endpoint:"
+        echo "  - Qwen2.5-7B: http://localhost:8000"
+        echo ""
+        echo "Commands:"
+        echo "  $0 status  - Check if server is ready"
+        echo "  $0 logs    - View download/startup progress"
+        echo "  $0 stop    - Stop server"
     else
         echo -e "${GREEN}============================================${NC}"
         echo -e "${GREEN}  Both models are ready!${NC}"
@@ -228,6 +253,7 @@ stop_servers() {
     docker compose -f docker-compose-single.yml down 2>/dev/null || true
     docker compose -f docker-compose-dual-medium.yml down 2>/dev/null || true
     docker compose -f docker-compose-gpt-oss.yml down 2>/dev/null || true
+    docker compose -f docker-compose-qwen7b.yml down 2>/dev/null || true
     echo -e "${GREEN}All servers stopped${NC}"
 }
 
@@ -249,6 +275,7 @@ show_status() {
         echo "  $0 start single   # Single 70B model"
         echo "  $0 start dual     # Two medium models"
         echo "  $0 start gpt-oss  # GPT-OSS-20B for fine-tuning/batch"
+        echo "  $0 start qwen7b   # Qwen2.5-7B for fine-tuning practice"
         return
     fi
     
@@ -258,7 +285,7 @@ show_status() {
     if curl -s http://localhost:8000/health > /dev/null 2>&1; then
         MODEL=$(curl -s http://localhost:8000/v1/models 2>/dev/null | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "unknown")
         echo -e "  Port 8000: ${GREEN}● Ready${NC} ($MODEL)"
-    elif docker ps --format '{{.Names}}' | grep -q "vllm-llama\|vllm-gpt-oss\|vllm-mistral"; then
+    elif docker ps --format '{{.Names}}' | grep -q "vllm-llama\|vllm-gpt-oss\|vllm-mistral\|vllm-qwen7b"; then
         echo -e "  Port 8000: ${YELLOW}● Loading...${NC}"
     else
         echo -e "  Port 8000: ${RED}● Not running${NC}"
@@ -311,6 +338,9 @@ show_logs() {
         elif docker ps --format '{{.Names}}' | grep -q "vllm-gpt-oss"; then
             echo -e "${CYAN}Following logs (Ctrl+C to exit)...${NC}"
             docker compose -f docker-compose-gpt-oss.yml logs -f
+        elif docker ps --format '{{.Names}}' | grep -q "vllm-qwen7b"; then
+            echo -e "${CYAN}Following logs (Ctrl+C to exit)...${NC}"
+            docker compose -f docker-compose-qwen7b.yml logs -f
         else
             echo -e "${YELLOW}No vLLM containers running${NC}"
         fi

@@ -389,12 +389,14 @@ Run **open-source LLMs locally** on NVIDIA DGX Spark using **vLLM** with Docker.
 | Configuration | Models | TPS | Use Case |
 |---------------|--------|-----|----------|
 | **GPT-OSS** | GPT-OSS-20B (MoE) | **15.5** | Fastest + reasoning |
+| **Qwen7B** | Qwen2.5-7B (Dense) | ~25-40 | Fine-tuning practice |
 | **Single** | Llama 3.3 70B NVFP4 | 3.9 | Maximum quality |
 | **Dual** | Mistral-24B + Qwen3-32B | 9.8 / 8.2 | Multi-agent (CrewAI) |
 
 **Key Features:**
 - OpenAI-compatible API (drop-in replacement)
 - GPT-OSS-20B: MoE architecture, 4x faster than dense models
+- Qwen2.5-7B: Dense model for full fine-tuning experiments
 - NVFP4/MXFP4 quantization for Blackwell GPUs
 - Up to 128K context windows
 - Fine-tuning support with Unsloth
@@ -403,6 +405,7 @@ Run **open-source LLMs locally** on NVIDIA DGX Spark using **vLLM** with Docker.
 ```bash
 cd 6-open-source
 ./start_docker.sh start gpt-oss  # Fastest (GPT-OSS-20B)
+./start_docker.sh start qwen7b   # Fine-tuning practice (Qwen2.5-7B)
 ./start_docker.sh start dual     # Multi-model (Mistral + Qwen)
 ./start_docker.sh status         # Check health
 ```

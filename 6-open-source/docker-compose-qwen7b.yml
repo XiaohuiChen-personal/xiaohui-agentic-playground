@@ -1,0 +1,96 @@
+# Qwen2.5-7B Configuration for DGX Spark
+# Dense 7B model for fine-tuning practice and inference
+#
+# Model: Qwen/Qwen2.5-7B-Instruct
+# Architecture: Dense Transformer (7B parameters)
+# Context: 128K tokens (can reduce for faster inference)
+#
+# Use Cases:
+# - Pre/post fine-tuning inference comparison
+# - Learning fine-tuning with full parameter updates
+# - Fast inference baseline
+#
+# Memory Usage:
+# - Model weights: ~14 GB (FP16) or ~4 GB (INT4)
+# - KV cache: Scales with context length
+# - Total: ~20-30 GB with 32K context
+#
+# Performance Expectations:
+# - TPS: 25-40 tokens/second (dense 7B is fast)
+# - TTFT: ~0.1s
+
+services:
+  qwen7b:
+    image: nvcr.io/nvidia/vllm:25.12-py3
+    container_name: vllm-qwen7b
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_HOME=/root/.cache/huggingface
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      # Mount for fine-tuned model checkpoints
+      - ./checkpoints:/checkpoints
+    ports:
+      - "8000:8000"
+    command: >
+      vllm serve Qwen/Qwen2.5-7B-Instruct
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.85
+      --max-num-seqs 64
+      --max-model-len 32768
+      --dtype auto
+      --trust-remote-code
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+# Optional: Serve a fine-tuned version (uncomment after fine-tuning)
+# To use: Replace the model path with your fine-tuned checkpoint
+#
+#  qwen7b-finetuned:
+#    image: nvcr.io/nvidia/vllm:25.12-py3
+#    container_name: vllm-qwen7b-finetuned
+#    ipc: host
+#    ulimits:
+#      memlock: -1
+#      stack: 67108864
+#    environment:
+#      - NVIDIA_VISIBLE_DEVICES=all
+#      - HF_HOME=/root/.cache/huggingface
+#    volumes:
+#      - ~/.cache/huggingface:/root/.cache/huggingface
+#      - ./checkpoints:/checkpoints
+#    ports:
+#      - "8001:8001"
+#    command: >
+#      vllm serve /checkpoints/qwen7b-ag-news
+#      --host 0.0.0.0
+#      --port 8001
+#      --gpu-memory-utilization 0.85
+#      --max-num-seqs 64
+#      --max-model-len 32768
+#      --dtype auto
+#      --trust-remote-code
+#    deploy:
+#      resources:
+#        reservations:
+#          devices:
+#            - driver: nvidia
+#              count: all
+#              capabilities: [gpu]

@@ -107,11 +107,38 @@ docker compose -f docker-compose-dual-medium.yml down
 
 > **⚠️ Sequential Startup Required**: Both models share the same GPU memory. Starting them simultaneously causes memory contention. Always start the smaller model (Mistral) first, wait until ready, then start the larger model (Qwen3).
 
+### Option 4: Qwen2.5-7B (Fine-Tuning Practice)
+
+Run **Qwen2.5-7B** (Dense) - ideal for fine-tuning experiments:
+
+```bash
+cd 6-open-source
+
+# Start Qwen2.5-7B on port 8000
+./start_docker.sh start qwen7b
+
+# Check status
+./start_docker.sh status
+
+# Stop
+./start_docker.sh stop
+```
+
+**Why Qwen2.5-7B?**
+- Dense 7B model (full fine-tuning possible on DGX Spark)
+- ~14 GB model size (fast download)
+- 128K context window
+- Strong coding and multilingual capabilities
+- Ideal baseline for fine-tuning experiments
+
 ### Using the Helper Script
 
 ```bash
-# Start GPT-OSS-20B (fastest)
+# Start GPT-OSS-20B (fastest inference)
 ./start_docker.sh start gpt-oss
+
+# Start Qwen2.5-7B (fine-tuning practice)
+./start_docker.sh start qwen7b
 
 # Start single Llama 70B
 ./start_docker.sh start single
@@ -146,6 +173,20 @@ Best for speed + reasoning with MoE architecture:
 - Chunked prefill enabled
 - CUDA graphs enabled
 - Chain-of-thought reasoning built-in
+
+### Qwen2.5-7B (85% GPU) - Fine-Tuning Practice
+
+Best for learning fine-tuning with a dense model:
+
+| Model | Architecture | Parameters | Context | Est. TPS | Use Case |
+|-------|--------------|------------|---------|----------|----------|
+| **Qwen/Qwen2.5-7B-Instruct** | Dense | 7B | 32K (128K max) | **25-40** | Fine-tuning baseline |
+
+**Configuration:**
+- BF16 precision (auto)
+- 64 concurrent sequences
+- Full fine-tuning possible on DGX Spark (~60 GB VRAM)
+- Checkpoints directory mounted for serving fine-tuned models
 
 ### Single Dense Model (85% GPU)
 
@@ -322,9 +363,11 @@ NUM_EPOCHS = 3
 ```
 6-open-source/
 ├── docker-compose-gpt-oss.yml     # GPT-OSS-20B MoE (fastest - 15.5 TPS)
+├── docker-compose-qwen7b.yml      # Qwen2.5-7B (fine-tuning practice)
 ├── docker-compose-single.yml      # Single 70B model (Llama 3.3 70B NVFP4)
 ├── docker-compose-dual-medium.yml # Two medium models (Mistral 24B + Qwen3 32B)
 ├── start_docker.sh                # Docker management script
+├── checkpoints/                   # Fine-tuned model checkpoints
 ├── test_inference.py              # API test suite
 ├── finetune_template.py           # Unsloth fine-tuning template
 ├── email_battle_open_source/      # CrewAI Email Battle using local models
