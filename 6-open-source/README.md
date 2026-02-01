@@ -37,7 +37,31 @@ sudo usermod -aG docker $USER
 
 ## Quick Start
 
-### Option 1: Single Large Model (Recommended)
+### Option 1: GPT-OSS-20B (Recommended - Fastest)
+
+Run **GPT-OSS-20B** (Mixture of Experts) - the fastest model on DGX Spark:
+
+```bash
+cd 6-open-source
+
+# Start GPT-OSS-20B on port 8000
+./start_docker.sh start gpt-oss
+
+# Check status
+./start_docker.sh status
+
+# Stop
+./start_docker.sh stop
+```
+
+**Why GPT-OSS-20B?**
+- **15.5 TPS** (4x faster than Llama-70B, 58% faster than Mistral-24B)
+- Only 3.6B active parameters per token (MoE architecture)
+- 128K context window
+- Built-in chain-of-thought reasoning
+- Apache 2.0 license for fine-tuning
+
+### Option 2: Single Large Model (Llama 70B)
 
 Run one 70B model with full GPU allocation:
 
@@ -54,7 +78,7 @@ docker logs -f vllm-llama-70b
 docker compose -f docker-compose-single.yml down
 ```
 
-### Option 2: Two Medium Models (Recommended for Multi-Model)
+### Option 3: Two Medium Models (Multi-Model)
 
 Run Mistral-Small 24B + Qwen3 32B simultaneously (both NVFP4):
 
@@ -86,10 +110,13 @@ docker compose -f docker-compose-dual-medium.yml down
 ### Using the Helper Script
 
 ```bash
-# Start (single model)
+# Start GPT-OSS-20B (fastest)
+./start_docker.sh start gpt-oss
+
+# Start single Llama 70B
 ./start_docker.sh start single
 
-# Start (dual medium models)
+# Start dual medium models
 ./start_docker.sh start dual
 
 # Check status
@@ -106,15 +133,28 @@ docker compose -f docker-compose-dual-medium.yml down
 
 ## Model Configurations
 
-### Single Model (85% GPU)
+### GPT-OSS-20B (85% GPU) - Fastest
 
-Best for maximum quality with one large model:
+Best for speed + reasoning with MoE architecture:
 
-| Model | VRAM Used | Context | Use Case |
-|-------|-----------|---------|----------|
-| Llama 3.3 70B NVFP4 | ~50 GB | 8K tokens | General reasoning |
-| Qwen 2.5 72B AWQ | ~50 GB | 8K tokens | Multilingual + code |
-| DeepSeek V3 (smaller) | ~50 GB | 8K tokens | Code generation |
+| Model | Architecture | Active Params | Context | TPS | Use Case |
+|-------|--------------|---------------|---------|-----|----------|
+| **openai/gpt-oss-20b** | MoE | 3.6B | 32K (128K max) | **15.5** | Speed + reasoning |
+
+**Configuration:**
+- MXFP4 native quantization
+- Chunked prefill enabled
+- CUDA graphs enabled
+- Chain-of-thought reasoning built-in
+
+### Single Dense Model (85% GPU)
+
+Best for maximum quality with one large dense model:
+
+| Model | VRAM Used | Context | TPS | Use Case |
+|-------|-----------|---------|-----|----------|
+| Llama 3.3 70B NVFP4 | ~50 GB | 8K tokens | 3.9 | Highest quality |
+| Qwen 2.5 72B AWQ | ~50 GB | 8K tokens | ~4 | Multilingual + code |
 
 ### Dual Medium Models (30% + 35% GPU)
 
@@ -281,15 +321,23 @@ NUM_EPOCHS = 3
 
 ```
 6-open-source/
+├── docker-compose-gpt-oss.yml     # GPT-OSS-20B MoE (fastest - 15.5 TPS)
 ├── docker-compose-single.yml      # Single 70B model (Llama 3.3 70B NVFP4)
 ├── docker-compose-dual-medium.yml # Two medium models (Mistral 24B + Qwen3 32B)
-├── start_docker.sh                # Docker management script (handles sequential startup)
+├── start_docker.sh                # Docker management script
 ├── test_inference.py              # API test suite
 ├── finetune_template.py           # Unsloth fine-tuning template
 ├── email_battle_open_source/      # CrewAI Email Battle using local models
 │   ├── src/email_battle/          # Flow and crew definitions
 │   ├── email_battle_result.txt    # Latest battle output
 │   └── README.md                  # Project documentation
+├── single_model_speed_test/       # Speed test benchmarks
+│   ├── speed_test.ipynb           # Llama-70B benchmark
+│   ├── speed_test_gpt.ipynb       # GPT-OSS-20B benchmark
+│   └── README.md                  # Test results
+├── dual_model_speed_test/         # Dual model benchmarks
+│   ├── speed_test.ipynb           # Mistral vs Qwen benchmark
+│   └── README.md                  # Test results
 └── README.md                      # This file
 ```
 

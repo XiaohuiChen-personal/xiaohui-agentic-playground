@@ -145,8 +145,9 @@ xiaohui-agentic-playground/
 │   ├── dual_model_speed_test/   # Speed comparison tests
 │   │   ├── speed_test.ipynb     # Benchmark notebook
 │   │   └── README.md            # Test results documentation
-│   ├── single_model_speed_test/ # Single 70B model benchmark
-│   │   ├── speed_test.ipynb     # Benchmark notebook
+│   ├── single_model_speed_test/ # Single model benchmarks
+│   │   ├── speed_test.ipynb     # Llama-70B benchmark
+│   │   ├── speed_test_gpt.ipynb # GPT-OSS-20B benchmark (fastest)
 │   │   └── README.md            # Test results documentation
 │   └── README.md                # vLLM setup documentation
 ├── .env.example                 # Template for environment variables
@@ -383,25 +384,27 @@ Open `5-autogen/email_battle/email_battle_autogen.ipynb` in Jupyter and run all 
 
 📁 [`6-open-source/`](6-open-source/)
 
-Run **open-source LLMs locally** on NVIDIA DGX Spark using **vLLM** with Docker. Supports single large models (70B) or dual medium models for multi-agent workflows.
+Run **open-source LLMs locally** on NVIDIA DGX Spark using **vLLM** with Docker.
 
-| Configuration | Models | Memory | Use Case |
-|---------------|--------|--------|----------|
-| **Single** | Llama 3.3 70B NVFP4 | 85% GPU | Maximum quality |
-| **Dual** | Mistral-24B + Qwen3-32B | 30% + 35% GPU | Multi-agent (CrewAI) |
+| Configuration | Models | TPS | Use Case |
+|---------------|--------|-----|----------|
+| **GPT-OSS** | GPT-OSS-20B (MoE) | **15.5** | Fastest + reasoning |
+| **Single** | Llama 3.3 70B NVFP4 | 3.9 | Maximum quality |
+| **Dual** | Mistral-24B + Qwen3-32B | 9.8 / 8.2 | Multi-agent (CrewAI) |
 
 **Key Features:**
 - OpenAI-compatible API (drop-in replacement)
-- NVFP4 quantization for Blackwell GPUs
-- 32K context windows for long conversations
-- Sequential startup for memory management
+- GPT-OSS-20B: MoE architecture, 4x faster than dense models
+- NVFP4/MXFP4 quantization for Blackwell GPUs
+- Up to 128K context windows
 - Fine-tuning support with Unsloth
 
 **Quick Start:**
 ```bash
 cd 6-open-source
-./start_docker.sh start dual    # Start both models
-./start_docker.sh status        # Check health
+./start_docker.sh start gpt-oss  # Fastest (GPT-OSS-20B)
+./start_docker.sh start dual     # Multi-model (Mistral + Qwen)
+./start_docker.sh status         # Check health
 ```
 
 ➡️ **[See full documentation](6-open-source/README.md)**
@@ -486,43 +489,43 @@ jupyter notebook dual_model_speed_test/speed_test.ipynb
 
 ---
 
-### 12. Single Model Speed Test (Llama 70B)
+### 12. Single Model Speed Tests
 
 📁 [`6-open-source/single_model_speed_test/`](6-open-source/single_model_speed_test/)
 
-Performance benchmark of **Llama-3.3-70B-Instruct-NVFP4** with CUDA graphs optimization on DGX Spark.
+Performance benchmarks of single models on DGX Spark.
+
+#### GPT-OSS-20B (MoE) - Fastest ⚡
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| **Avg TPS** | 15-25 | **15.5** | ✅ Met expectation |
+| **Avg TTFT** | 0.1-0.2s | **0.141s** | ✅ Met expectation |
+| **vs Llama-70B** | 4-6x faster | **4x faster** | ✅ Met expectation |
+
+**Key Features:**
+- MoE architecture (only 3.6B active params per token)
+- 128K context window
+- Built-in chain-of-thought reasoning
+- Apache 2.0 license for fine-tuning
+
+**Run:**
+```bash
+cd 6-open-source
+./start_docker.sh start gpt-oss
+jupyter notebook single_model_speed_test/speed_test_gpt.ipynb
+```
+
+#### Llama-70B (Dense)
 
 | Metric | Expected | Actual | Status |
 |--------|----------|--------|--------|
 | **Avg TPS** | 12-15+ | **3.9** | ❌ Below expectation |
 | **Avg TTFT** | ~0.14s | **0.54s** | ❌ 4x slower |
-| **vs Mistral-24B** | +20-40% | **-59.7%** | ❌ Much slower |
-
-**Configuration:**
-- CUDA graphs enabled (removed `--enforce-eager`)
-- 85% GPU memory utilization
-- 8K context length
-- 128 max concurrent sequences
 
 **Key Findings:**
 - **3.9 TPS is near the hardware limit** for 70B on DGX Spark unified memory
-- **Model size dominates performance** - 70B is 2.5x slower than 24B regardless of optimizations
-- **Memory bandwidth is the bottleneck** - Unified memory (~0.5-1 TB/s) limits throughput
-- **CUDA graphs provide minimal benefit** when workload is memory-bound
-
-**Why Expectations Were Not Met:**
-| Factor | Impact |
-|--------|--------|
-| 70B model (2.9x larger than 24B) | 2.5x slower TPS |
-| DGX Spark unified memory | ~5-7x lower bandwidth than H100 HBM3 |
-| Single-request mode | Can't leverage batching |
-
-**Recommendations:**
-| Priority | Model Choice |
-|----------|--------------|
-| Speed-critical | Mistral-24B (~10 TPS) |
-| Quality-critical | Llama-70B (accept 4 TPS) |
-| Balanced | 24B for simple, 70B for complex tasks |
+- **Model size dominates** - Memory bandwidth is the bottleneck
 
 **Run:**
 ```bash
@@ -530,6 +533,21 @@ cd 6-open-source
 ./start_docker.sh start single
 jupyter notebook single_model_speed_test/speed_test.ipynb
 ```
+
+#### Model Comparison
+
+| Model | Architecture | Active Params | Avg TPS | Relative Speed |
+|-------|--------------|---------------|---------|----------------|
+| **GPT-OSS-20B** | **MoE** | **3.6B** | **15.5** | **4.0x faster** |
+| Mistral-24B | Dense | 24B | 9.8 | 2.5x faster |
+| Llama-70B | Dense | 70B | 3.9 | 1.0x (baseline) |
+
+**Recommendations:**
+| Use Case | Model | TPS |
+|----------|-------|-----|
+| Speed + Reasoning | GPT-OSS-20B | 15.5 |
+| Fast General Tasks | Mistral-24B | 9.8 |
+| Maximum Quality | Llama-70B | 3.9 |
 
 ➡️ **[See full documentation](6-open-source/single_model_speed_test/README.md)**
 
