@@ -145,6 +145,9 @@ xiaohui-agentic-playground/
 │   ├── dual_model_speed_test/   # Speed comparison tests
 │   │   ├── speed_test.ipynb     # Benchmark notebook
 │   │   └── README.md            # Test results documentation
+│   ├── single_model_speed_test/ # Single 70B model benchmark
+│   │   ├── speed_test.ipynb     # Benchmark notebook
+│   │   └── README.md            # Test results documentation
 │   └── README.md                # vLLM setup documentation
 ├── .env.example                 # Template for environment variables
 ├── .gitignore
@@ -480,6 +483,55 @@ jupyter notebook dual_model_speed_test/speed_test.ipynb
 ```
 
 ➡️ **[See full documentation](6-open-source/dual_model_speed_test/README.md)**
+
+---
+
+### 12. Single Model Speed Test (Llama 70B)
+
+📁 [`6-open-source/single_model_speed_test/`](6-open-source/single_model_speed_test/)
+
+Performance benchmark of **Llama-3.3-70B-Instruct-NVFP4** with CUDA graphs optimization on DGX Spark.
+
+| Metric | Expected | Actual | Status |
+|--------|----------|--------|--------|
+| **Avg TPS** | 12-15+ | **3.9** | ❌ Below expectation |
+| **Avg TTFT** | ~0.14s | **0.54s** | ❌ 4x slower |
+| **vs Mistral-24B** | +20-40% | **-59.7%** | ❌ Much slower |
+
+**Configuration:**
+- CUDA graphs enabled (removed `--enforce-eager`)
+- 85% GPU memory utilization
+- 8K context length
+- 128 max concurrent sequences
+
+**Key Findings:**
+- **3.9 TPS is near the hardware limit** for 70B on DGX Spark unified memory
+- **Model size dominates performance** - 70B is 2.5x slower than 24B regardless of optimizations
+- **Memory bandwidth is the bottleneck** - Unified memory (~0.5-1 TB/s) limits throughput
+- **CUDA graphs provide minimal benefit** when workload is memory-bound
+
+**Why Expectations Were Not Met:**
+| Factor | Impact |
+|--------|--------|
+| 70B model (2.9x larger than 24B) | 2.5x slower TPS |
+| DGX Spark unified memory | ~5-7x lower bandwidth than H100 HBM3 |
+| Single-request mode | Can't leverage batching |
+
+**Recommendations:**
+| Priority | Model Choice |
+|----------|--------------|
+| Speed-critical | Mistral-24B (~10 TPS) |
+| Quality-critical | Llama-70B (accept 4 TPS) |
+| Balanced | 24B for simple, 70B for complex tasks |
+
+**Run:**
+```bash
+cd 6-open-source
+./start_docker.sh start single
+jupyter notebook single_model_speed_test/speed_test.ipynb
+```
+
+➡️ **[See full documentation](6-open-source/single_model_speed_test/README.md)**
 
 ---
 
