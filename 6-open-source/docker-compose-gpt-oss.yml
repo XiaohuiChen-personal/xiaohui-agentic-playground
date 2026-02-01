@@ -1,0 +1,101 @@
+# GPT-OSS-20B Configuration for DGX Spark
+# Optimized for batch inference and fine-tuning evaluation
+#
+# Model: openai/gpt-oss-20b (MXFP4 native)
+# Architecture: 21B total params, 3.6B active (Mixture of Experts)
+# Max Context: 131,072 tokens (128K) - model supports full 128K!
+#
+# Use Case: Fine-tuning practice + batch inference on test datasets
+#
+# Key Optimizations:
+# - High batch size (64 concurrent sequences) for batch inference
+# - 85% GPU memory for maximum KV cache
+# - 32K context (adjustable up to 128K, reduce batch size accordingly)
+# - CUDA graphs enabled for speed
+#
+# Context vs Batch Trade-offs (128GB memory):
+#   --max-model-len 16384  + --max-num-seqs 64  = High throughput batch
+#   --max-model-len 32768  + --max-num-seqs 32  = Balanced (default)
+#   --max-model-len 65536  + --max-num-seqs 16  = Large context
+#   --max-model-len 131072 + --max-num-seqs 4   = Maximum context
+
+services:
+  gpt-oss-20b:
+    image: nvcr.io/nvidia/vllm:25.12-py3
+    container_name: vllm-gpt-oss-20b
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_HOME=/root/.cache/huggingface
+      # For batch inference logging
+      - VLLM_LOGGING_LEVEL=INFO
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      # Mount for fine-tuned adapters (LoRA weights)
+      - ./adapters:/adapters
+      # Mount for test datasets
+      - ./datasets:/datasets
+    ports:
+      - "8000:8000"
+    command: >
+      vllm serve openai/gpt-oss-20b
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.85
+      --max-num-seqs 32
+      --max-model-len 32768
+      --trust-remote-code
+      --enable-chunked-prefill
+      --max-num-batched-tokens 65536
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+  # Optional: LoRA adapter serving (uncomment after fine-tuning)
+  # gpt-oss-20b-lora:
+  #   image: nvcr.io/nvidia/vllm:25.12-py3
+  #   container_name: vllm-gpt-oss-20b-lora
+  #   ipc: host
+  #   ulimits:
+  #     memlock: -1
+  #     stack: 67108864
+  #   environment:
+  #     - NVIDIA_VISIBLE_DEVICES=all
+  #     - HF_HOME=/root/.cache/huggingface
+  #   volumes:
+  #     - ~/.cache/huggingface:/root/.cache/huggingface
+  #     - ./adapters:/adapters
+  #   ports:
+  #     - "8001:8001"
+  #   command: >
+  #     vllm serve openai/gpt-oss-20b
+  #     --host 0.0.0.0
+  #     --port 8001
+  #     --gpu-memory-utilization 0.85
+  #     --max-num-seqs 32
+  #     --max-model-len 32768
+  #     --trust-remote-code
+  #     --enable-chunked-prefill
+  #     --enable-lora
+  #     --lora-modules my-lora=/adapters/my-lora-adapter
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
