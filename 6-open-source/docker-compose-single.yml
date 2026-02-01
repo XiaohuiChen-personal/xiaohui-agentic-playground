@@ -1,0 +1,35 @@
+# Single Large Model Configuration for DGX Spark
+# Run ONE 70B model with 128 GB unified memory
+
+services:
+  llama-70b:
+    image: nvcr.io/nvidia/vllm:25.12-py3
+    container_name: vllm-llama-70b
+    ipc: host  # Required for vLLM shared memory
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_HOME=/root/.cache/huggingface
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8000:8000"
+    command: >
+      vllm serve RedHatAI/Llama-3.3-70B-Instruct-NVFP4
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.85
+      --max-num-seqs 128
+      --max-model-len 8192
+      --dtype auto
+      --enforce-eager
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped

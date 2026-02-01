@@ -1,0 +1,78 @@
+# Dual Medium Model Configuration for DGX Spark (Memory-Optimized)
+# Mistral-Small-24B + Qwen3-32B (both NVFP4) with 128 GB unified memory
+#
+# IMPORTANT: Reduced allocations to prevent memory contention
+# Total: 65% GPU (35% buffer for system + coordination)
+
+services:
+  # Mistral Small 24B (NVFP4) on port 8000
+  # Weights: ~15 GB, Allocation: 30% (~38 GB)
+  # Best for: European languages, fast inference, general tasks
+  mistral-24b:
+    image: nvcr.io/nvidia/vllm:25.12-py3
+    container_name: vllm-mistral-24b
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_HOME=/root/.cache/huggingface
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8000:8000"
+    command: >
+      vllm serve RedHatAI/Mistral-Small-3.2-24B-Instruct-2506-NVFP4
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.30
+      --max-num-seqs 16
+      --max-model-len 2048
+      --dtype auto
+      --enforce-eager
+      --trust-remote-code
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # Qwen3-32B (NVFP4) on port 8001
+  # Weights: ~20 GB, Allocation: 35% (~45 GB)
+  # Best for: Coding, math, multilingual, reasoning
+  qwen3-32b:
+    image: nvcr.io/nvidia/vllm:25.12-py3
+    container_name: vllm-qwen3-32b
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_HOME=/root/.cache/huggingface
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+    ports:
+      - "8001:8001"
+    command: >
+      vllm serve nvidia/Qwen3-32B-NVFP4
+      --host 0.0.0.0
+      --port 8001
+      --gpu-memory-utilization 0.35
+      --max-num-seqs 16
+      --max-model-len 2048
+      --dtype auto
+      --enforce-eager
+      --trust-remote-code
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
