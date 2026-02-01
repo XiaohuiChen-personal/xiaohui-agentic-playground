@@ -1,8 +1,8 @@
-# Dual Medium Model Configuration for DGX Spark (Memory-Optimized)
+# Dual Medium Model Configuration for DGX Spark (Long Context)
 # Mistral-Small-24B + Qwen3-32B (both NVFP4) with 128 GB unified memory
 #
-# IMPORTANT: Reduced allocations to prevent memory contention
-# Total: 65% GPU (35% buffer for system + coordination)
+# Configuration: 32K context length with single concurrent request
+# Optimized for CrewAI sequential processing (one agent at a time)
 
 services:
   # Mistral Small 24B (NVFP4) on port 8000
@@ -27,8 +27,8 @@ services:
       --host 0.0.0.0
       --port 8000
       --gpu-memory-utilization 0.30
-      --max-num-seqs 16
-      --max-model-len 2048
+      --max-num-seqs 1
+      --max-model-len 32768
       --dtype auto
       --enforce-eager
       --trust-remote-code
@@ -63,8 +63,8 @@ services:
       --host 0.0.0.0
       --port 8001
       --gpu-memory-utilization 0.35
-      --max-num-seqs 16
-      --max-model-len 2048
+      --max-num-seqs 1
+      --max-model-len 32768
       --dtype auto
       --enforce-eager
       --trust-remote-code

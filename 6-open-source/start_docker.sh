@@ -12,6 +12,47 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
+# ============================================
+# Docker Permission Check
+# ============================================
+# Check if we can access Docker. If not, try to use the docker group.
+check_docker_access() {
+    # Test if docker is accessible
+    if docker info > /dev/null 2>&1; then
+        return 0  # Docker is accessible
+    fi
+    
+    # Docker not accessible - check if user is in docker group (in /etc/group)
+    if grep -q "^docker:.*:.*${USER}" /etc/group 2>/dev/null; then
+        # User is in docker group but current session doesn't have it
+        # Check if we're already trying to use sg (prevent infinite loop)
+        if [ "${DOCKER_GROUP_RETRY:-}" = "1" ]; then
+            echo -e "${RED}Error: Still cannot access Docker after group switch.${NC}"
+            echo "Try logging out and back in, or run: newgrp docker"
+            exit 1
+        fi
+        
+        echo -e "${YELLOW}Docker group not active in current session. Activating...${NC}"
+        # Re-execute this script with the docker group
+        export DOCKER_GROUP_RETRY=1
+        exec sg docker -c "\"$0\" $*"
+    else
+        # User is not in docker group at all
+        echo -e "${RED}Error: Cannot access Docker.${NC}"
+        echo ""
+        echo "You are not in the 'docker' group. To fix this:"
+        echo "  1. Add yourself to the docker group:"
+        echo "     sudo usermod -aG docker \$USER"
+        echo "  2. Log out and log back in (or run: newgrp docker)"
+        echo ""
+        echo "Alternatively, run this script with sudo."
+        exit 1
+    fi
+}
+
+# Run the docker access check
+check_docker_access "$@"
+
 # Default to single model
 COMPOSE_FILE="docker-compose-single.yml"
 MODE="single"
@@ -206,9 +247,25 @@ show_status() {
     
     echo ""
     echo -e "${CYAN}GPU Memory:${NC}"
-    nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null | \
-        awk '{printf "  Used: %.2f GB / %.2f GB (%.1f%%)\n", $1/1024, $2/1024, ($1/$2)*100}' || \
-        echo "  Unable to query GPU"
+    GPU_INFO=$(nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null)
+    if [ -n "$GPU_INFO" ] && ! echo "$GPU_INFO" | grep -q "N/A"; then
+        # Parse numeric values (format: "used, total")
+        USED=$(echo "$GPU_INFO" | cut -d',' -f1 | tr -d ' ')
+        TOTAL=$(echo "$GPU_INFO" | cut -d',' -f2 | tr -d ' ')
+        if [ "$TOTAL" -gt 0 ] 2>/dev/null; then
+            USED_GB=$(echo "scale=2; $USED/1024" | bc)
+            TOTAL_GB=$(echo "scale=2; $TOTAL/1024" | bc)
+            PERCENT=$(echo "scale=1; ($USED/$TOTAL)*100" | bc)
+            echo "  Used: ${USED_GB} GB / ${TOTAL_GB} GB (${PERCENT}%)"
+        else
+            echo "  DGX Spark: 128 GB unified memory (shared CPU/GPU)"
+        fi
+    elif echo "$GPU_INFO" | grep -q "N/A"; then
+        # DGX Spark with unified memory shows N/A
+        echo "  DGX Spark: 128 GB unified memory (shared CPU/GPU)"
+    else
+        echo "  Unable to query GPU (nvidia-smi not available)"
+    fi
 }
 
 show_logs() {

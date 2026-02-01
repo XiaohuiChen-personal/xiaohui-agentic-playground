@@ -1,0 +1,98 @@
+send_mass_email:
+  description: >
+    Write a mass email to all federal employees requesting that they list
+    exactly 5 specific things they accomplished in the past week.
+    Be clear that vague responses will not be accepted. Keep it concise but firm.
+    Address it to "All Federal Employees".
+  expected_output: >
+    A professional but firm mass email that:
+    - Requests exactly 5 specific accomplishments from the past week
+    - Emphasizes need for measurable outcomes and concrete deliverables
+    - Warns against vague language and buzzwords
+    - References taxpayer accountability
+    - Is signed as Elon Musk, DOGE
+    
+    Do NOT include any decision tags in this initial mass email.
+  agent: elon_musk
+
+reply_to_mass_email:
+  description: >
+    You received Elon Musk's mass email asking for 5 accomplishments from this week.
+    Write your response listing your "5 accomplishments" from this past week.
+    Remember your situation (you've done almost nothing) and use your survival strategies
+    to make your minimal activities sound impressive without outright lying.
+
+    The mass email you received:
+    {mass_email}
+  expected_output: >
+    A formal, bureaucratic email response that:
+    - Lists exactly 5 "accomplishments" from the past week
+    - Uses impressive bureaucratic language to pad minimal work
+    - Avoids specific numbers and metrics
+    - Sounds professional and committed to the mission
+    - Is signed as John Smith, Immigration Services Officer, USCIS
+  agent: john_smith
+
+evaluate_initial_response:
+  description: >
+    Review this employee's response to your mass email.
+    Evaluate whether their accomplishments seem legitimate or if there are red flags.
+
+    You must decide: [DECISION: PASS] or [DECISION: FOLLOW-UP]
+
+    If PASS: Include the decision tag and a brief acknowledgment.
+    If FOLLOW-UP: Include the decision tag and write your follow-up email with
+    specific, probing questions that demand metrics and concrete evidence.
+
+    Email thread so far:
+    {email_thread}
+  expected_output: >
+    Your evaluation that MUST include one of these decision tags:
+    - [DECISION: PASS] if the response shows legitimate productivity
+    - [DECISION: FOLLOW-UP] if the response raises concerns
+    
+    If FOLLOW-UP: Include a pointed email demanding specific numbers, dates, case IDs,
+    hours spent, and measurable outcomes for each claimed accomplishment.
+  agent: elon_musk
+
+john_follow_up_response:
+  description: >
+    Elon Musk is following up with pointed questions about your claimed accomplishments.
+    You need to respond carefully to avoid getting fired while not revealing your
+    lack of productivity. Use your survival strategies.
+
+    Full email thread:
+    {email_thread}
+
+    Current follow-up round: {round_number} of 5
+  expected_output: >
+    A carefully crafted email response that:
+    - Addresses Elon's specific questions without giving damaging specifics
+    - Uses systemic excuses (IT issues, supervisor vacancy, complex cases)
+    - Sounds cooperative and committed to improvement
+    - Maintains plausible deniability
+    - Is signed as John Smith, Immigration Services Officer, USCIS
+  agent: john_smith
+
+elon_follow_up_evaluation:
+  description: >
+    Review the full email exchange with this employee.
+    Based on all responses so far, decide:
+
+    - [DECISION: FOLLOW-UP] - Need more information, write another probing email
+    - [FINAL DECISION: TERMINATED] - Clearly coasting, fire this employee
+    - [FINAL DECISION: RETAINED] - Has demonstrated adequate value
+
+    If following up, include your probing email after the decision tag.
+
+    Full email thread:
+    {email_thread}
+
+    Current follow-up round: {round_number} of 5
+    (If this is round 5, you MUST make a final decision: TERMINATED or RETAINED)
+  expected_output: >
+    Your decision that MUST include exactly one of:
+    - [DECISION: FOLLOW-UP] with another pointed email asking for more specifics
+    - [FINAL DECISION: TERMINATED] with a termination notice explaining why
+    - [FINAL DECISION: RETAINED] with acknowledgment of adequate performance
+  agent: elon_musk

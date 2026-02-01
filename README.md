@@ -10,6 +10,7 @@ This repository contains experiments with different agentic design patterns for 
 - **CrewAI** - YAML-based agent/task configuration with Flow orchestration
 - **LangGraph** - Stateful graph-based workflows with explicit nodes and edges
 - **AutoGen** - Microsoft's multi-agent conversation framework
+- **vLLM + Open Source Models** - Local inference with Qwen3, Mistral, Llama on DGX Spark
 
 **Patterns explored:**
 - **Prompt Chaining** - Decomposing complex tasks into sequential subtasks
@@ -135,6 +136,13 @@ xiaohui-agentic-playground/
 │   └── email_battle/            # AutoGen implementation
 │       ├── email_battle_autogen.ipynb  # Notebook implementation
 │       └── README.md            # Detailed documentation
+├── 6-open-source/
+│   ├── docker-compose-*.yml     # vLLM container configurations
+│   ├── start_docker.sh          # Docker management script
+│   ├── email_battle_open_source/ # Email Battle with local models
+│   │   ├── src/email_battle/    # CrewAI Flow implementation
+│   │   └── README.md            # Detailed documentation
+│   └── README.md                # vLLM setup documentation
 ├── .env.example                 # Template for environment variables
 ├── .gitignore
 ├── pyproject.toml               # Project dependencies (UV/pip)
@@ -159,7 +167,8 @@ xiaohui-agentic-playground/
 | `python-dotenv` | Load environment variables from `.env` |
 | `crewai` | CrewAI multi-agent framework |
 | `streamlit` | Web application framework for Sensei UI |
-| `litellm` | Universal LLM interface (OpenAI, Anthropic, Google) |
+| `litellm` | Universal LLM interface (OpenAI, Anthropic, Google, local) |
+| `vllm` | High-throughput LLM inference (via Docker) |
 | `datasets` | HuggingFace Datasets (for AG News dataset) |
 | `scikit-learn` | Metrics and evaluation |
 | `ipykernel` | Jupyter kernel support |
@@ -361,6 +370,69 @@ The Email Battle scenario reimplemented using **Microsoft AutoGen 0.7**, demonst
 Open `5-autogen/email_battle/email_battle_autogen.ipynb` in Jupyter and run all cells.
 
 ➡️ **[See full documentation](5-autogen/email_battle/README.md)**
+
+---
+
+### 9. Open Source LLM Inference (vLLM)
+
+📁 [`6-open-source/`](6-open-source/)
+
+Run **open-source LLMs locally** on NVIDIA DGX Spark using **vLLM** with Docker. Supports single large models (70B) or dual medium models for multi-agent workflows.
+
+| Configuration | Models | Memory | Use Case |
+|---------------|--------|--------|----------|
+| **Single** | Llama 3.3 70B NVFP4 | 85% GPU | Maximum quality |
+| **Dual** | Mistral-24B + Qwen3-32B | 30% + 35% GPU | Multi-agent (CrewAI) |
+
+**Key Features:**
+- OpenAI-compatible API (drop-in replacement)
+- NVFP4 quantization for Blackwell GPUs
+- 32K context windows for long conversations
+- Sequential startup for memory management
+- Fine-tuning support with Unsloth
+
+**Quick Start:**
+```bash
+cd 6-open-source
+./start_docker.sh start dual    # Start both models
+./start_docker.sh status        # Check health
+```
+
+➡️ **[See full documentation](6-open-source/README.md)**
+
+---
+
+### 10. Email Battle (Open Source Models)
+
+📁 [`6-open-source/email_battle_open_source/`](6-open-source/email_battle_open_source/)
+
+The Email Battle scenario running entirely on **local open-source models** via vLLM - no API costs, full privacy.
+
+| Agent | Model | Port | Strengths |
+|-------|-------|------|-----------|
+| **Elon Musk (DOGE)** | Qwen3-32B-NVFP4 | 8001 | Reasoning, analysis, probing questions |
+| **John Smith (USCIS)** | Mistral-Small-24B-NVFP4 | 8000 | Language generation, bureaucratic style |
+
+**Latest Battle Results:**
+- **Winner:** Elon Musk (TERMINATED)
+- **Rounds:** 4 follow-up rounds, 11 total emails
+- **Runtime:** ~12 minutes on DGX Spark
+
+**Key Features:**
+- CrewAI Flow orchestration with local LLMs
+- 32K context window for full email thread
+- Qwen3 thinking mode disabled for cleaner output
+- Zero API costs
+
+**Run:**
+```bash
+cd 6-open-source
+./start_docker.sh start dual    # Start models first
+cd email_battle_open_source
+crewai run
+```
+
+➡️ **[See full documentation](6-open-source/email_battle_open_source/README.md)**
 
 ---
 

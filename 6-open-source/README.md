@@ -120,16 +120,18 @@ Best for maximum quality with one large model:
 
 Best for running two capable models from different providers:
 
-| Model | Port | Weights | KV Cache | Concurrency |
-|-------|------|---------|----------|-------------|
-| Mistral-Small 24B NVFP4 | 8000 | ~15 GB | ~18 GB | 56x @ 2K tokens |
-| Qwen3 32B NVFP4 | 8001 | ~20 GB | ~20 GB | 40x @ 2K tokens |
+| Model | Port | Weights | Allocation | Context |
+|-------|------|---------|------------|---------|
+| Mistral-Small 24B NVFP4 | 8000 | ~15 GB | 30% (~38 GB) | 32K tokens |
+| Qwen3 32B NVFP4 | 8001 | ~20 GB | 35% (~45 GB) | 32K tokens |
+
+**Configuration**: Optimized for sequential processing (one request at a time) with long context windows.
 
 **Model Strengths:**
-- **Mistral-Small 24B (Mistral AI)**: European languages, fast inference, general reasoning
-- **Qwen3 32B (Alibaba)**: Coding, math, multilingual, thinking/reasoning
+- **Mistral-Small 24B (RedHatAI)**: European languages, fast inference, general reasoning
+- **Qwen3 32B (Alibaba/NVIDIA)**: Coding, math, multilingual, thinking/reasoning
 
-> **Note**: Both models use NVFP4 quantization for optimal Blackwell GPU performance. Sequential startup is required to avoid memory contention.
+> **Note**: Both models use NVFP4 quantization for optimal Blackwell GPU performance. Sequential startup is required to avoid memory contention. The `max-num-seqs=1` setting allows maximum context length per request.
 
 ---
 
@@ -185,18 +187,24 @@ async def batch_inference(prompts):
 results = asyncio.run(batch_inference([f"Question {i}" for i in range(50)]))
 ```
 
-### Multi-Model Requests
+### Multi-Model Requests (Dual Mode)
 
 ```python
 from openai import OpenAI
 
 # Different clients for different models
-llama = OpenAI(base_url="http://localhost:8000/v1", api_key="EMPTY")
+mistral = OpenAI(base_url="http://localhost:8000/v1", api_key="EMPTY")
 qwen = OpenAI(base_url="http://localhost:8001/v1", api_key="EMPTY")
 
 # Use the right model for each task
-english_response = llama.chat.completions.create(...)
-chinese_response = qwen.chat.completions.create(...)
+general_response = mistral.chat.completions.create(
+    model="RedHatAI/Mistral-Small-3.2-24B-Instruct-2506-NVFP4",
+    messages=[{"role": "user", "content": "Explain this concept..."}],
+)
+coding_response = qwen.chat.completions.create(
+    model="nvidia/Qwen3-32B-NVFP4",
+    messages=[{"role": "user", "content": "Write a Python function..."}],
+)
 ```
 
 ### Test Script
@@ -278,6 +286,10 @@ NUM_EPOCHS = 3
 ├── start_docker.sh                # Docker management script (handles sequential startup)
 ├── test_inference.py              # API test suite
 ├── finetune_template.py           # Unsloth fine-tuning template
+├── email_battle_open_source/      # CrewAI Email Battle using local models
+│   ├── src/email_battle/          # Flow and crew definitions
+│   ├── email_battle_result.txt    # Latest battle output
+│   └── README.md                  # Project documentation
 └── README.md                      # This file
 ```
 
@@ -304,15 +316,15 @@ command: >
 
 ### Key Parameters
 
-| Parameter | Description | Recommended |
-|-----------|-------------|-------------|
-| `--gpu-memory-utilization` | % of VRAM to use | 0.85 (single), 0.30-0.35 (dual) |
-| `--max-num-seqs` | Max concurrent sequences | 128 (single), 16 (dual) |
-| `--max-model-len` | Max context length | 8192 (single), 2048 (dual) |
-| `--enforce-eager` | Required for Blackwell | Always include |
-| `--trust-remote-code` | Allow custom model code | Required for some models |
+| Parameter | Description | Single Mode | Dual Mode |
+|-----------|-------------|-------------|-----------|
+| `--gpu-memory-utilization` | % of VRAM to use | 0.85 | 0.30-0.35 |
+| `--max-num-seqs` | Max concurrent sequences | 128 | 1 |
+| `--max-model-len` | Max context length | 8192 | 32768 |
+| `--enforce-eager` | Required for Blackwell | Always | Always |
+| `--trust-remote-code` | Allow custom model code | If needed | If needed |
 
-> **Dual Model Memory**: For dual models, use lower `gpu-memory-utilization` (30-35%) and shorter context (2K) to leave room for both models' KV caches.
+> **Dual Model Memory**: For dual models, we use `max-num-seqs=1` (sequential processing) which allows long 32K context windows within the lower memory allocation. This is ideal for agentic workflows like CrewAI where only one model processes at a time.
 
 ---
 
