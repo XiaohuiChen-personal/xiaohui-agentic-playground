@@ -142,6 +142,9 @@ xiaohui-agentic-playground/
 │   ├── email_battle_open_source/ # Email Battle with local models
 │   │   ├── src/email_battle/    # CrewAI Flow implementation
 │   │   └── README.md            # Detailed documentation
+│   ├── dual_model_speed_test/   # Speed comparison tests
+│   │   ├── speed_test.ipynb     # Benchmark notebook
+│   │   └── README.md            # Test results documentation
 │   └── README.md                # vLLM setup documentation
 ├── .env.example                 # Template for environment variables
 ├── .gitignore
@@ -433,6 +436,50 @@ crewai run
 ```
 
 ➡️ **[See full documentation](6-open-source/email_battle_open_source/README.md)**
+
+---
+
+### 11. Dual Model Speed Test
+
+📁 [`6-open-source/dual_model_speed_test/`](6-open-source/dual_model_speed_test/)
+
+Performance benchmarks comparing **Mistral-Small-24B** and **Qwen3-32B** running concurrently on DGX Spark.
+
+| Metric | Mistral-24B | Qwen3-32B | Winner |
+|--------|-------------|-----------|--------|
+| **Avg TTFT** | 0.138s | 0.169s | Mistral (18% faster) |
+| **Avg Total Time** | 23.3s | 39.4s | Mistral (41% faster) |
+| **Avg TPS** | 9.8 | 8.2 | Mistral (20% faster) |
+
+**Test Scenarios:**
+1. Short Prompt, Short Response - Baseline latency
+2. Short Prompt, Long Response - Sustained throughput
+3. Long Prompt, Short Response - Prefill speed
+4. Code Generation - Programming tasks
+5. Reasoning Task - Multi-step logic problems
+
+**Key Findings:**
+- **Mistral-24B is significantly faster** across all metrics
+- **Qwen3-32B uses chain-of-thought by default** (`<think>` tags), generating 5-10x more tokens
+- Both achieve sub-200ms TTFT for interactive applications
+- Qwen3's longer times reflect more reasoning work, not just slower generation
+
+**Recommendations:**
+| Use Case | Model |
+|----------|-------|
+| Quick responses / General tasks | Mistral-24B |
+| Complex reasoning / Math | Qwen3-32B |
+| Latency-sensitive agents | Mistral-24B |
+| Accuracy-critical tasks | Qwen3-32B |
+
+**Run:**
+```bash
+cd 6-open-source
+./start_docker.sh start dual
+jupyter notebook dual_model_speed_test/speed_test.ipynb
+```
+
+➡️ **[See full documentation](6-open-source/dual_model_speed_test/README.md)**
 
 ---
 
