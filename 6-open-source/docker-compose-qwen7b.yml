@@ -33,7 +33,7 @@ services:
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
       # Mount for fine-tuned model checkpoints
-      - ./checkpoints:/checkpoints
+      - ./fine-tuning-dense/checkpoints:/checkpoints
     ports:
       - "8000:8000"
     command: >
@@ -75,7 +75,7 @@ services:
 #      - HF_HOME=/root/.cache/huggingface
 #    volumes:
 #      - ~/.cache/huggingface:/root/.cache/huggingface
-#      - ./checkpoints:/checkpoints
+#      - ./fine-tuning-dense/checkpoints:/checkpoints
 #    ports:
 #      - "8001:8001"
 #    command: >

@@ -1,0 +1,9 @@
+# This directory stores LoRA/QLoRA adapter weights after fine-tuning.
+# Adapters are small (~100MB) compared to full model weights.
+#
+# Example structure after fine-tuning:
+#   adapters/
+#   └── qwen7b-ag-news-lora/
+#       ├── adapter_config.json
+#       ├── adapter_model.safetensors
+#       └── README.md

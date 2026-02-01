@@ -35,9 +35,9 @@ services:
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
       # Mount for fine-tuned adapters (LoRA weights)
-      - ./adapters:/adapters
+      - ./fine-tuning-dense/adapters:/adapters
       # Mount for test datasets
-      - ./datasets:/datasets
+      - ./fine-tuning-dense/datasets:/datasets
     ports:
       - "8000:8000"
     command: >
@@ -78,7 +78,7 @@ services:
   #     - HF_HOME=/root/.cache/huggingface
   #   volumes:
   #     - ~/.cache/huggingface:/root/.cache/huggingface
-  #     - ./adapters:/adapters
+  #     - ./fine-tuning-dense/adapters:/adapters
   #   ports:
   #     - "8001:8001"
   #   command: >

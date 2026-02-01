@@ -367,9 +367,14 @@ NUM_EPOCHS = 3
 ├── docker-compose-single.yml      # Single 70B model (Llama 3.3 70B NVFP4)
 ├── docker-compose-dual-medium.yml # Two medium models (Mistral 24B + Qwen3 32B)
 ├── start_docker.sh                # Docker management script
-├── checkpoints/                   # Fine-tuned model checkpoints
 ├── test_inference.py              # API test suite
 ├── finetune_template.py           # Unsloth fine-tuning template
+├── fine-tuning-dense/             # Fine-tuning experiments
+│   ├── base_model_performance.ipynb  # Base model evaluation
+│   ├── checkpoints/               # Fine-tuned model weights
+│   ├── adapters/                  # LoRA adapter weights
+│   ├── datasets/                  # Prepared training datasets
+│   └── *.json, *.png              # Results and visualizations
 ├── email_battle_open_source/      # CrewAI Email Battle using local models
 │   ├── src/email_battle/          # Flow and crew definitions
 │   ├── email_battle_result.txt    # Latest battle output

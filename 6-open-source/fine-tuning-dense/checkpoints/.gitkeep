@@ -1,0 +1,12 @@
+# This directory stores full fine-tuned model checkpoints.
+# These are larger (~14GB for Qwen2.5-7B) and may not be committed to Git.
+#
+# Example structure after fine-tuning:
+#   checkpoints/
+#   └── qwen7b-ag-news/
+#       ├── config.json
+#       ├── model.safetensors
+#       ├── tokenizer.json
+#       └── ...
+#
+# Note: Add large model files to .gitignore if not using Git LFS.
