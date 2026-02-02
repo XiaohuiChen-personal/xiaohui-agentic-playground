@@ -81,21 +81,26 @@ def convert_dataset(
     Yields:
         Converted examples in chat messages format
     """
-    print(f"Loading AG News dataset ({split} split)...")
+    print(f"[1/4] Loading AG News dataset ({split} split)...", flush=True)
     dataset = load_dataset("ag_news", split=split)
+    print(f"      Loaded {len(dataset):,} examples", flush=True)
     
     # Convert to list for shuffling/subsetting
+    print(f"[2/4] Converting to list...", flush=True)
     data = list(dataset)
     
     if shuffle:
+        print(f"[3/4] Shuffling with seed={seed}...", flush=True)
         random.seed(seed)
         random.shuffle(data)
+    else:
+        print(f"[3/4] Skipping shuffle", flush=True)
     
     if subset_size:
         data = data[:subset_size]
-        print(f"Using subset of {subset_size:,} samples")
+        print(f"[4/4] Using subset of {subset_size:,} samples", flush=True)
     else:
-        print(f"Converting all {len(data):,} samples")
+        print(f"[4/4] Using all {len(data):,} samples", flush=True)
     
     for example in data:
         yield convert_example(example)

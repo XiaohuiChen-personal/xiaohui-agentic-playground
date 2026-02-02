@@ -17,3 +17,9 @@ venv/
 # OS
 .DS_Store
 
+# Fine-tuning artifacts (large files)
+6-open-source/fine-tuning-dense/checkpoints/*
+6-open-source/fine-tuning-dense/adapters/*
+6-open-source/fine-tuning-dense/datasets/*.jsonl
+!**/.gitkeep
+
