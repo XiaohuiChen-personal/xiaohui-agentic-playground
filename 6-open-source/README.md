@@ -1,13 +1,14 @@
 # Open Source LLM Inference & Fine-Tuning
 
-Run open-source LLMs locally on DGX Spark with **vLLM** (via Docker) for inference and **Unsloth** for fine-tuning.
+Run open-source LLMs locally on DGX Spark with **vLLM** (via Docker) for inference and **full fine-tuning** with NVIDIA's optimized PyTorch container.
 
 ## Features
 
 - **High-Performance Inference**: vLLM with continuous batching for hundreds of concurrent requests
 - **OpenAI-Compatible API**: Drop-in replacement for OpenAI API calls
-- **Fine-Tuning**: Efficient LoRA/QLoRA training with Unsloth (2-4x speedup)
-- **Docker-Based**: NVIDIA's official vLLM container with CUDA 13.1 support
+- **Full Fine-Tuning**: Train 7B models in ~10 hours with 5 key optimizations
+- **LoRA/QLoRA**: Parameter-efficient fine-tuning with Unsloth (2-4x speedup)
+- **Docker-Based**: NVIDIA's official containers optimized for Blackwell GB10 (sm_121)
 
 ## System Requirements
 
@@ -19,7 +20,8 @@ Run open-source LLMs locally on DGX Spark with **vLLM** (via Docker) for inferen
 | Bandwidth | 273 GB/s |
 | Compute | sm_121 (12.1) |
 | CUDA | 13.0+ |
-| Container | `nvcr.io/nvidia/vllm:25.12-py3` |
+| Inference Container | `nvcr.io/nvidia/vllm:25.12-py3` |
+| Training Container | `nvcr.io/nvidia/pytorch:25.11-py3` |
 
 ## Prerequisites
 
@@ -301,50 +303,64 @@ python test_inference.py
 
 This project supports both **full fine-tuning** and **LoRA/QLoRA** fine-tuning approaches.
 
-### Option 1: Full Fine-Tuning with Docker (Recommended)
-
-Full fine-tuning uses NVIDIA's PyTorch Docker container for optimal performance on DGX Spark (sm_121).
-
-#### Prerequisites
+### Quick Start: Full Fine-Tuning
 
 ```bash
-# Stop any running inference containers first
+# Stop any running inference containers
 ./start_docker.sh stop
-```
 
-#### Start Training Container
-
-```bash
 # Start the training container with Jupyter Lab
 ./start_docker.sh start finetune
 
-# Check status
-./start_docker.sh status
-
-# View logs
-./start_docker.sh logs finetune
+# Access Jupyter at http://localhost:8888
+# Open fine-tuning-dense/fine_tuning_full.ipynb
 ```
 
-#### Access Jupyter Lab
-
-Open http://localhost:8888 in your browser and navigate to:
-- `fine_tuning_full.ipynb` - Full fine-tuning notebook
-
-#### Why Docker for Full Fine-Tuning?
+### Why Docker for Fine-Tuning?
 
 | Aspect | venv (pip install) | Docker Container |
 |--------|-------------------|------------------|
-| sm_121 support | ⚠️ Partial (3.6% TFLOPS) | ✅ Native |
-| Flash Attention 2 | ❌ Not available | ✅ Compiled for Blackwell |
-| Transformer Engine | ❌ Not available | ✅ FP8 support |
-| Training time (7B model) | 50-60+ hours | ~8-15 hours |
+| **TFLOPS** | 4.5 (3.6% of peak) | 38.2 (30.6% of peak) |
+| **Training time** | 50-60+ hours | ~10 hours |
+| sm_121 support | ⚠️ Fallback kernels | ✅ Native |
+| Flash Attention 2 | ❌ | ✅ |
 
-### Option 2: LoRA/QLoRA with Unsloth
+The DGX Spark's GB10 (sm_121) requires NVIDIA's optimized container for full performance.
 
-For parameter-efficient fine-tuning, use Unsloth which provides 2-4x faster training with 60% less memory.
+### Fine-Tuning Methods Comparison
+
+| Method | Memory | Time | Output | Best For |
+|--------|--------|------|--------|----------|
+| **Full Fine-Tuning** | ~70 GB | ~10 hours | ~14 GB | Maximum quality |
+| **LoRA** | ~30 GB | 2-4 hours | ~200 MB | Good balance |
+| **QLoRA** | ~20 GB | 2-4 hours | ~200 MB | Memory constrained |
+
+### Current Experiment
+
+The [`fine-tuning-dense/`](fine-tuning-dense/) folder contains a complete experiment:
+
+| Aspect | Details |
+|--------|---------|
+| Model | Qwen2.5-7B-Instruct |
+| Task | AG News 4-class classification |
+| Dataset | 120K training examples |
+| Base accuracy | 78.63% |
+| Target accuracy | 85-92% |
+
+**Optimizations implemented:**
+1. cuDNN benchmark mode (+5-10%)
+2. Sequence packing (+30-40%)
+3. Flash Attention 2 (+10-15%)
+4. Optimized batch configuration (+10-15%)
+
+➡️ **[See detailed fine-tuning documentation](fine-tuning-dense/README.md)**
+
+### LoRA/QLoRA with Unsloth
+
+For parameter-efficient fine-tuning:
 
 ```bash
-# Create a separate venv for fine-tuning
+# Create a separate venv
 python -m venv .venv-finetune
 source .venv-finetune/bin/activate
 
@@ -352,27 +368,9 @@ source .venv-finetune/bin/activate
 pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 pip install xformers trl peft accelerate bitsandbytes datasets
 
-# Edit and run the template
+# Run the template
 python finetune_template.py
 ```
-
-### Fine-Tuning Comparison
-
-| Method | Memory | Time | Output Size | Best For |
-|--------|--------|------|-------------|----------|
-| **Full Fine-Tuning** | ~60-70 GB | 8-15 hours | ~14 GB | Maximum quality |
-| **LoRA** | ~30-40 GB | 2-4 hours | ~200 MB | Good balance |
-| **QLoRA** | ~16-24 GB | 2-4 hours | ~200 MB | Memory constrained |
-
-### Current Fine-Tuning Experiment
-
-The `fine-tuning-dense/` folder contains a complete experiment fine-tuning **Qwen2.5-7B** on the **AG News** classification dataset:
-
-| Metric | Base Model | Target (Fine-Tuned) |
-|--------|------------|---------------------|
-| Accuracy | 78.63% | 85-92% |
-| Dataset | - | 120K training examples |
-| Task | - | 4-class text classification |
 
 ---
 
@@ -388,18 +386,14 @@ The `fine-tuning-dense/` folder contains a complete experiment fine-tuning **Qwe
 ├── start_docker.sh                # Docker management script
 ├── test_inference.py              # API test suite
 ├── finetune_template.py           # Unsloth fine-tuning template
-├── fine-tuning-dense/             # Full fine-tuning experiments
+├── fine-tuning-dense/             # Full fine-tuning experiments (see README)
+│   ├── README.md                  # Detailed fine-tuning documentation
 │   ├── fine_tuning_full.ipynb     # Full fine-tuning notebook (run in Docker)
 │   ├── base_model_performance.ipynb  # Base model evaluation
 │   ├── checkpoints/               # Fine-tuned model weights
-│   │   └── qwen7b-ag-news-full/   # Full fine-tuned Qwen2.5-7B
 │   ├── adapters/                  # LoRA adapter weights
-│   ├── datasets/                  # Prepared training datasets
-│   │   └── train.jsonl            # 120K AG News training examples
+│   ├── datasets/                  # Prepared training datasets (120K examples)
 │   ├── data_prep/                 # Dataset preparation scripts
-│   │   ├── convert_dataset.py     # Convert AG News to chat format
-│   │   ├── config.py              # Prompts and categories
-│   │   └── README.md              # Data preparation docs
 │   └── *.json, *.png              # Results and visualizations
 ├── email_battle_open_source/      # CrewAI Email Battle using local models
 │   ├── src/email_battle/          # Flow and crew definitions
