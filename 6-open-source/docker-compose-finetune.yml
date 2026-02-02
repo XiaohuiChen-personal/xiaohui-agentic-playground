@@ -1,0 +1,98 @@
+# =============================================================================
+# Docker Compose for Full Fine-Tuning on DGX Spark
+# =============================================================================
+# Uses NVIDIA's PyTorch container with Transformer Engine for optimal
+# performance on Blackwell GB10 (sm_121).
+#
+# Features:
+# - Native sm_120/121 CUDA kernels (no fallback mode)
+# - Transformer Engine 2.9+ with NVFP4/FP8 support
+# - Flash Attention 2 compiled for Blackwell
+# - Triton with optimized kernels
+# - Jupyter Lab for interactive development
+#
+# Usage:
+#   ./start_docker.sh start finetune    # Start container with Jupyter
+#   ./start_docker.sh stop              # Stop container
+#   ./start_docker.sh logs finetune     # View logs
+#   ./start_docker.sh status            # Check status
+#
+# Access Jupyter at: http://localhost:8888
+# =============================================================================
+
+services:
+  finetune:
+    container_name: pytorch-finetune
+    image: nvcr.io/nvidia/pytorch:25.11-py3
+    
+    # GPU access
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    
+    # Network
+    ports:
+      - "8888:8888"    # Jupyter Lab
+      - "6006:6006"    # TensorBoard (optional)
+    
+    # Volumes
+    volumes:
+      # Mount the workspace
+      - ../:/workspace
+      # Mount HuggingFace cache for model weights
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      # Mount the fine-tuning directory specifically
+      - ./fine-tuning-dense:/fine-tuning
+    
+    # Working directory
+    working_dir: /fine-tuning
+    
+    # Environment variables
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_HOME=/root/.cache/huggingface
+      - TRANSFORMERS_CACHE=/root/.cache/huggingface/hub
+      # Optimize for DGX Spark unified memory
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+      # Enable TF32 for better performance
+      - NVIDIA_TF32_OVERRIDE=1
+      # Disable tokenizers parallelism warning
+      - TOKENIZERS_PARALLELISM=false
+    
+    # Resource limits
+    shm_size: '32gb'
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    
+    # Keep container running and start Jupyter
+    command: >
+      bash -c "
+        echo '============================================'
+        echo '  NVIDIA PyTorch Container for Fine-Tuning'
+        echo '============================================'
+        echo ''
+        echo 'Container: nvcr.io/nvidia/pytorch:25.11-py3'
+        echo 'GPU: '$(nvidia-smi --query-gpu=name --format=csv,noheader)
+        echo 'CUDA: '$(nvcc --version | grep release | awk '{print $6}')
+        echo ''
+        echo 'Installing additional packages...'
+        pip install -q trl>=0.27.0 peft>=0.18.0 datasets>=4.0.0 scikit-learn matplotlib
+        echo ''
+        echo 'Starting Jupyter Lab...'
+        echo 'Access at: http://localhost:8888'
+        echo ''
+        jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token='' --NotebookApp.password=''
+      "
+    
+    # Restart policy
+    restart: unless-stopped
+    
+    # Labels for identification
+    labels:
+      - "com.nvidia.dgx-spark.purpose=fine-tuning"
+      - "com.nvidia.dgx-spark.model=qwen2.5-7b"

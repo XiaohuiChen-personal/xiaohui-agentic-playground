@@ -297,18 +297,51 @@ python test_inference.py
 
 ---
 
-## Fine-Tuning with Unsloth
+## Fine-Tuning
 
-Unsloth provides 2-4x faster fine-tuning with 60% less memory.
+This project supports both **full fine-tuning** and **LoRA/QLoRA** fine-tuning approaches.
 
-### Important: Stop Inference First
+### Option 1: Full Fine-Tuning with Docker (Recommended)
+
+Full fine-tuning uses NVIDIA's PyTorch Docker container for optimal performance on DGX Spark (sm_121).
+
+#### Prerequisites
 
 ```bash
-# Fine-tuning needs full GPU access
-docker compose -f docker-compose-single.yml down
+# Stop any running inference containers first
+./start_docker.sh stop
 ```
 
-### Setup Fine-Tuning Environment
+#### Start Training Container
+
+```bash
+# Start the training container with Jupyter Lab
+./start_docker.sh start finetune
+
+# Check status
+./start_docker.sh status
+
+# View logs
+./start_docker.sh logs finetune
+```
+
+#### Access Jupyter Lab
+
+Open http://localhost:8888 in your browser and navigate to:
+- `fine_tuning_full.ipynb` - Full fine-tuning notebook
+
+#### Why Docker for Full Fine-Tuning?
+
+| Aspect | venv (pip install) | Docker Container |
+|--------|-------------------|------------------|
+| sm_121 support | ⚠️ Partial (3.6% TFLOPS) | ✅ Native |
+| Flash Attention 2 | ❌ Not available | ✅ Compiled for Blackwell |
+| Transformer Engine | ❌ Not available | ✅ FP8 support |
+| Training time (7B model) | 50-60+ hours | ~8-15 hours |
+
+### Option 2: LoRA/QLoRA with Unsloth
+
+For parameter-efficient fine-tuning, use Unsloth which provides 2-4x faster training with 60% less memory.
 
 ```bash
 # Create a separate venv for fine-tuning
@@ -318,43 +351,28 @@ source .venv-finetune/bin/activate
 # Install Unsloth
 pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
 pip install xformers trl peft accelerate bitsandbytes datasets
-```
 
-### Run Fine-Tuning
-
-```bash
-# Edit finetune_template.py with your settings
+# Edit and run the template
 python finetune_template.py
 ```
 
-### Fine-Tuning Configuration
+### Fine-Tuning Comparison
 
-Edit `finetune_template.py`:
+| Method | Memory | Time | Output Size | Best For |
+|--------|--------|------|-------------|----------|
+| **Full Fine-Tuning** | ~60-70 GB | 8-15 hours | ~14 GB | Maximum quality |
+| **LoRA** | ~30-40 GB | 2-4 hours | ~200 MB | Good balance |
+| **QLoRA** | ~16-24 GB | 2-4 hours | ~200 MB | Memory constrained |
 
-```python
-# Model to fine-tune
-BASE_MODEL = "unsloth/Llama-3.1-8B-Instruct"
+### Current Fine-Tuning Experiment
 
-# LoRA settings
-LORA_R = 16          # Rank (8-64, higher = more capacity)
-LORA_ALPHA = 16      # Scaling factor
-LOAD_IN_4BIT = True  # QLoRA for memory efficiency
+The `fine-tuning-dense/` folder contains a complete experiment fine-tuning **Qwen2.5-7B** on the **AG News** classification dataset:
 
-# Training
-BATCH_SIZE = 2
-GRADIENT_ACCUMULATION = 4
-LEARNING_RATE = 2e-4
-NUM_EPOCHS = 3
-```
-
-### Supported Base Models
-
-| Model | Unsloth ID | Notes |
-|-------|------------|-------|
-| Llama 3.2 3B | `unsloth/Llama-3.2-3B-Instruct` | Fast for testing |
-| Llama 3.1 8B | `unsloth/Llama-3.1-8B-Instruct` | Good balance |
-| Qwen 2.5 7B | `unsloth/Qwen2.5-7B-Instruct` | Strong multilingual |
-| Mistral 7B | `unsloth/Mistral-7B-Instruct-v0.3` | Fast inference |
+| Metric | Base Model | Target (Fine-Tuned) |
+|--------|------------|---------------------|
+| Accuracy | 78.63% | 85-92% |
+| Dataset | - | 120K training examples |
+| Task | - | 4-class text classification |
 
 ---
 
@@ -363,17 +381,25 @@ NUM_EPOCHS = 3
 ```
 6-open-source/
 ├── docker-compose-gpt-oss.yml     # GPT-OSS-20B MoE (fastest - 15.5 TPS)
-├── docker-compose-qwen7b.yml      # Qwen2.5-7B (fine-tuning practice)
+├── docker-compose-qwen7b.yml      # Qwen2.5-7B (fine-tuning inference)
 ├── docker-compose-single.yml      # Single 70B model (Llama 3.3 70B NVFP4)
 ├── docker-compose-dual-medium.yml # Two medium models (Mistral 24B + Qwen3 32B)
+├── docker-compose-finetune.yml    # PyTorch training container (Jupyter)
 ├── start_docker.sh                # Docker management script
 ├── test_inference.py              # API test suite
 ├── finetune_template.py           # Unsloth fine-tuning template
-├── fine-tuning-dense/             # Fine-tuning experiments
+├── fine-tuning-dense/             # Full fine-tuning experiments
+│   ├── fine_tuning_full.ipynb     # Full fine-tuning notebook (run in Docker)
 │   ├── base_model_performance.ipynb  # Base model evaluation
 │   ├── checkpoints/               # Fine-tuned model weights
+│   │   └── qwen7b-ag-news-full/   # Full fine-tuned Qwen2.5-7B
 │   ├── adapters/                  # LoRA adapter weights
 │   ├── datasets/                  # Prepared training datasets
+│   │   └── train.jsonl            # 120K AG News training examples
+│   ├── data_prep/                 # Dataset preparation scripts
+│   │   ├── convert_dataset.py     # Convert AG News to chat format
+│   │   ├── config.py              # Prompts and categories
+│   │   └── README.md              # Data preparation docs
 │   └── *.json, *.png              # Results and visualizations
 ├── email_battle_open_source/      # CrewAI Email Battle using local models
 │   ├── src/email_battle/          # Flow and crew definitions
@@ -478,27 +504,39 @@ newgrp docker
 ## Workflow Summary
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                   Unified Memory (128 GB)                   │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  INFERENCE MODE              FINE-TUNING MODE               │
-│  ──────────────              ─────────────────              │
-│  ┌─────────────┐             ┌─────────────────┐            │
-│  │ vLLM Docker │             │                 │            │
-│  │             │             │   Unsloth       │            │
-│  │ Single 70B  │             │   Training      │            │
-│  │ (85% GPU)   │     OR      │   (90% GPU)     │            │
-│  │             │             │                 │            │
-│  │ - or -      │             │                 │            │
-│  │ Mistral 24B │             │                 │            │
-│  │ + Qwen3 32B │             │                 │            │
-│  │ (65% GPU)   │             │                 │            │
-│  └─────────────┘             └─────────────────┘            │
-│                                                             │
-│  ./start_docker.sh start     python finetune_template.py    │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                     Unified Memory (128 GB)                      │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  INFERENCE MODE                 TRAINING MODE                    │
+│  ──────────────                 ─────────────                    │
+│  ┌─────────────┐                ┌─────────────────┐              │
+│  │ vLLM Docker │                │ PyTorch Docker  │              │
+│  │             │                │                 │              │
+│  │ GPT-OSS-20B │                │ Full Fine-Tune  │              │
+│  │ (85% GPU)   │                │ (90% GPU)       │              │
+│  │             │      OR        │                 │              │
+│  │ - or -      │                │ - or -          │              │
+│  │ Qwen2.5-7B  │                │                 │              │
+│  │ Mistral-24B │                │ Unsloth LoRA    │              │
+│  │ Llama-70B   │                │ (60% GPU)       │              │
+│  └─────────────┘                └─────────────────┘              │
+│                                                                  │
+│  ./start_docker.sh start       ./start_docker.sh start finetune │
+│           gpt-oss              → Open http://localhost:8888     │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
 
-⚠️  Stop inference containers before fine-tuning!
+⚠️  Only ONE mode can run at a time - stop inference before training!
 ```
+
+### Docker Commands Reference
+
+| Action | Command |
+|--------|---------|
+| Start GPT-OSS-20B (fastest) | `./start_docker.sh start gpt-oss` |
+| Start Qwen2.5-7B (fine-tuning inference) | `./start_docker.sh start qwen7b` |
+| Start training container | `./start_docker.sh start finetune` |
+| Check status | `./start_docker.sh status` |
+| View logs | `./start_docker.sh logs` |
+| Stop all | `./start_docker.sh stop` |

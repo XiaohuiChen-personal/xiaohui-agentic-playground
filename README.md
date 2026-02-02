@@ -137,8 +137,14 @@ xiaohui-agentic-playground/
 │       ├── email_battle_autogen.ipynb  # Notebook implementation
 │       └── README.md            # Detailed documentation
 ├── 6-open-source/
-│   ├── docker-compose-*.yml     # vLLM container configurations
-│   ├── start_docker.sh          # Docker management script
+│   ├── docker-compose-*.yml     # vLLM + PyTorch container configurations
+│   ├── start_docker.sh          # Docker management script (inference + training)
+│   ├── fine-tuning-dense/       # Full fine-tuning experiments
+│   │   ├── fine_tuning_full.ipynb # Full fine-tuning notebook (Docker)
+│   │   ├── base_model_performance.ipynb # Base model evaluation
+│   │   ├── datasets/            # Training data (120K examples)
+│   │   ├── checkpoints/         # Fine-tuned model weights
+│   │   └── data_prep/           # Dataset preparation scripts
 │   ├── email_battle_open_source/ # Email Battle with local models
 │   │   ├── src/email_battle/    # CrewAI Flow implementation
 │   │   └── README.md            # Detailed documentation
@@ -149,7 +155,7 @@ xiaohui-agentic-playground/
 │   │   ├── speed_test.ipynb     # Llama-70B benchmark
 │   │   ├── speed_test_gpt.ipynb # GPT-OSS-20B benchmark (fastest)
 │   │   └── README.md            # Test results documentation
-│   └── README.md                # vLLM setup documentation
+│   └── README.md                # vLLM + fine-tuning documentation
 ├── .env.example                 # Template for environment variables
 ├── .gitignore
 ├── pyproject.toml               # Project dependencies (UV/pip)
@@ -380,33 +386,48 @@ Open `5-autogen/email_battle/email_battle_autogen.ipynb` in Jupyter and run all 
 
 ---
 
-### 9. Open Source LLM Inference (vLLM)
+### 9. Open Source LLM Inference & Fine-Tuning (vLLM)
 
 📁 [`6-open-source/`](6-open-source/)
 
-Run **open-source LLMs locally** on NVIDIA DGX Spark using **vLLM** with Docker.
+Run **open-source LLMs locally** on NVIDIA DGX Spark using **vLLM** with Docker, and **fine-tune** models with NVIDIA's optimized PyTorch container.
+
+#### Inference Modes
 
 | Configuration | Models | TPS | Use Case |
 |---------------|--------|-----|----------|
 | **GPT-OSS** | GPT-OSS-20B (MoE) | **15.5** | Fastest + reasoning |
-| **Qwen7B** | Qwen2.5-7B (Dense) | ~25-40 | Fine-tuning practice |
+| **Qwen7B** | Qwen2.5-7B (Dense) | ~25-40 | Fine-tuning baseline |
 | **Single** | Llama 3.3 70B NVFP4 | 3.9 | Maximum quality |
 | **Dual** | Mistral-24B + Qwen3-32B | 9.8 / 8.2 | Multi-agent (CrewAI) |
+
+#### Fine-Tuning
+
+| Method | Container | Time | Use Case |
+|--------|-----------|------|----------|
+| **Full Fine-Tuning** | `nvcr.io/nvidia/pytorch:25.11-py3` | 8-15 hours | Maximum quality |
+| **LoRA/QLoRA** | Unsloth (venv) | 2-4 hours | Memory efficient |
 
 **Key Features:**
 - OpenAI-compatible API (drop-in replacement)
 - GPT-OSS-20B: MoE architecture, 4x faster than dense models
-- Qwen2.5-7B: Dense model for full fine-tuning experiments
+- Full fine-tuning with NVIDIA Docker (native sm_121 support)
+- Jupyter Lab for interactive training
 - NVFP4/MXFP4 quantization for Blackwell GPUs
 - Up to 128K context windows
-- Fine-tuning support with Unsloth
 
 **Quick Start:**
 ```bash
 cd 6-open-source
+
+# Inference
 ./start_docker.sh start gpt-oss  # Fastest (GPT-OSS-20B)
-./start_docker.sh start qwen7b   # Fine-tuning practice (Qwen2.5-7B)
-./start_docker.sh start dual     # Multi-model (Mistral + Qwen)
+./start_docker.sh start qwen7b   # Fine-tuning baseline (Qwen2.5-7B)
+
+# Training (stop inference first!)
+./start_docker.sh stop
+./start_docker.sh start finetune  # Opens Jupyter at http://localhost:8888
+
 ./start_docker.sh status         # Check health
 ```
 

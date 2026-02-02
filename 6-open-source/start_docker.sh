@@ -69,17 +69,21 @@ show_help() {
     echo "  $0 logs [container]     Show logs (follow mode)"
     echo "  $0 pull                 Pull latest vLLM image"
     echo ""
-    echo "Modes:"
+    echo "Modes (Inference):"
     echo "  single   - Run one 70B model (Llama 3.3 70B NVFP4) on port 8000"
     echo "  dual     - Run two medium models (Mistral 24B + Qwen3 32B) on ports 8000/8001"
     echo "  gpt-oss  - Run GPT-OSS-20B (MXFP4) optimized for batch inference"
     echo "  qwen7b   - Run Qwen2.5-7B (dense) for fine-tuning practice"
+    echo ""
+    echo "Modes (Training):"
+    echo "  finetune - Start PyTorch training container with Jupyter (port 8888)"
     echo ""
     echo "Examples:"
     echo "  $0 start single    # Start single 70B model"
     echo "  $0 start dual      # Start dual medium models"
     echo "  $0 start gpt-oss   # Start GPT-OSS-20B for fine-tuning/batch inference"
     echo "  $0 start qwen7b    # Start Qwen2.5-7B for fine-tuning practice"
+    echo "  $0 start finetune  # Start training container with Jupyter"
     echo "  $0 logs            # Follow all logs"
     echo "  $0 stop            # Stop all containers"
     echo ""
@@ -103,9 +107,13 @@ set_mode() {
             COMPOSE_FILE="docker-compose-qwen7b.yml"
             MODE="qwen7b"
             ;;
+        finetune|ft|train)
+            COMPOSE_FILE="docker-compose-finetune.yml"
+            MODE="finetune"
+            ;;
         *)
             echo -e "${RED}Unknown mode: $1${NC}"
-            echo "Use 'single', 'dual', 'gpt-oss', or 'qwen7b'"
+            echo "Use 'single', 'dual', 'gpt-oss', 'qwen7b', or 'finetune'"
             exit 1
             ;;
     esac
@@ -122,17 +130,24 @@ start_servers() {
     echo ""
     
     # Check if other containers are running
-    if docker ps --format '{{.Names}}' | grep -q "vllm-"; then
-        echo -e "${YELLOW}Stopping existing vLLM containers...${NC}"
+    if docker ps --format '{{.Names}}' | grep -qE "vllm-|pytorch-finetune"; then
+        echo -e "${YELLOW}Stopping existing containers...${NC}"
         docker compose -f docker-compose-single.yml down 2>/dev/null || true
         docker compose -f docker-compose-dual-medium.yml down 2>/dev/null || true
         docker compose -f docker-compose-gpt-oss.yml down 2>/dev/null || true
         docker compose -f docker-compose-qwen7b.yml down 2>/dev/null || true
+        docker compose -f docker-compose-finetune.yml down 2>/dev/null || true
         echo ""
     fi
     
-    echo -e "${CYAN}Pulling NVIDIA vLLM image (CUDA 13.1)...${NC}"
-    docker pull nvcr.io/nvidia/vllm:25.12-py3
+    # Pull appropriate image based on mode
+    if [ "$MODE" = "finetune" ]; then
+        echo -e "${CYAN}Pulling NVIDIA PyTorch image (for training)...${NC}"
+        docker pull nvcr.io/nvidia/pytorch:25.11-py3
+    else
+        echo -e "${CYAN}Pulling NVIDIA vLLM image (CUDA 13.1)...${NC}"
+        docker pull nvcr.io/nvidia/vllm:25.12-py3
+    fi
     echo ""
     
     if [ "$MODE" = "dual" ]; then
@@ -226,6 +241,30 @@ start_servers() {
         echo "  $0 status  - Check if server is ready"
         echo "  $0 logs    - View download/startup progress"
         echo "  $0 stop    - Stop server"
+    elif [ "$MODE" = "finetune" ]; then
+        echo -e "${GREEN}Training container starting!${NC}"
+        echo ""
+        echo "Container: nvcr.io/nvidia/pytorch:25.11-py3"
+        echo ""
+        echo "Features:"
+        echo "  - Native sm_120/121 CUDA kernels (optimized for Blackwell)"
+        echo "  - Transformer Engine 2.9+ with FP8 support"
+        echo "  - Flash Attention 2 compiled for Blackwell"
+        echo "  - Jupyter Lab for interactive development"
+        echo ""
+        echo "Access:"
+        echo "  - Jupyter Lab: http://localhost:8888"
+        echo "  - TensorBoard: http://localhost:6006 (if enabled)"
+        echo ""
+        echo "Working Directory: /fine-tuning"
+        echo "  - Notebooks: fine_tuning_full.ipynb"
+        echo "  - Datasets:  datasets/train.jsonl"
+        echo "  - Output:    checkpoints/"
+        echo ""
+        echo "Commands:"
+        echo "  $0 status  - Check container status"
+        echo "  $0 logs finetune - View container logs"
+        echo "  $0 stop    - Stop container"
     else
         echo -e "${GREEN}============================================${NC}"
         echo -e "${GREEN}  Both models are ready!${NC}"
@@ -249,33 +288,35 @@ start_servers() {
 }
 
 stop_servers() {
-    echo -e "${YELLOW}Stopping all vLLM servers...${NC}"
+    echo -e "${YELLOW}Stopping all containers...${NC}"
     docker compose -f docker-compose-single.yml down 2>/dev/null || true
     docker compose -f docker-compose-dual-medium.yml down 2>/dev/null || true
     docker compose -f docker-compose-gpt-oss.yml down 2>/dev/null || true
     docker compose -f docker-compose-qwen7b.yml down 2>/dev/null || true
-    echo -e "${GREEN}All servers stopped${NC}"
+    docker compose -f docker-compose-finetune.yml down 2>/dev/null || true
+    echo -e "${GREEN}All containers stopped${NC}"
 }
 
 show_status() {
     echo -e "${GREEN}============================================${NC}"
-    echo -e "${GREEN}  vLLM Docker Server Status${NC}"
+    echo -e "${GREEN}  Docker Container Status${NC}"
     echo -e "${GREEN}============================================${NC}"
     echo ""
     
-    # Show running containers
-    CONTAINERS=$(docker ps --filter "name=vllm-" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null)
-    if [ -n "$CONTAINERS" ]; then
+    # Show running containers (vLLM and finetune)
+    CONTAINERS=$(docker ps --filter "name=vllm-" --filter "name=pytorch-finetune" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null)
+    if [ -n "$CONTAINERS" ] && [ "$(echo "$CONTAINERS" | wc -l)" -gt 1 ]; then
         echo -e "${CYAN}Running Containers:${NC}"
         echo "$CONTAINERS"
     else
-        echo -e "${YELLOW}No vLLM containers running${NC}"
+        echo -e "${YELLOW}No containers running${NC}"
         echo ""
         echo "Start with:"
         echo "  $0 start single   # Single 70B model"
         echo "  $0 start dual     # Two medium models"
         echo "  $0 start gpt-oss  # GPT-OSS-20B for fine-tuning/batch"
         echo "  $0 start qwen7b   # Qwen2.5-7B for fine-tuning practice"
+        echo "  $0 start finetune # Training container with Jupyter"
         return
     fi
     
@@ -296,6 +337,15 @@ show_status() {
         echo -e "  Port 8001: ${GREEN}● Ready${NC} ($MODEL)"
     elif docker ps --format '{{.Names}}' | grep -q "vllm-.*8001\|vllm-qwen"; then
         echo -e "  Port 8001: ${YELLOW}● Loading...${NC}"
+    fi
+    
+    # Check finetune container (Jupyter on port 8888)
+    if docker ps --format '{{.Names}}' | grep -q "pytorch-finetune"; then
+        if curl -s http://localhost:8888/api > /dev/null 2>&1; then
+            echo -e "  Port 8888: ${GREEN}● Jupyter Ready${NC} (Training Container)"
+        else
+            echo -e "  Port 8888: ${YELLOW}● Starting...${NC} (Training Container)"
+        fi
     fi
     
     echo ""
@@ -325,8 +375,17 @@ show_logs() {
     CONTAINER="${1:-}"
     
     if [ -n "$CONTAINER" ]; then
-        echo -e "${CYAN}Following logs for $CONTAINER (Ctrl+C to exit)...${NC}"
-        docker logs -f "$CONTAINER"
+        # Handle named containers or shortcuts
+        case "$CONTAINER" in
+            finetune|ft|train)
+                echo -e "${CYAN}Following logs for pytorch-finetune (Ctrl+C to exit)...${NC}"
+                docker logs -f pytorch-finetune
+                ;;
+            *)
+                echo -e "${CYAN}Following logs for $CONTAINER (Ctrl+C to exit)...${NC}"
+                docker logs -f "$CONTAINER"
+                ;;
+        esac
     else
         # Show logs for whichever compose file has running containers
         if docker ps --format '{{.Names}}' | grep -q "vllm-llama-70b"; then
@@ -341,8 +400,11 @@ show_logs() {
         elif docker ps --format '{{.Names}}' | grep -q "vllm-qwen7b"; then
             echo -e "${CYAN}Following logs (Ctrl+C to exit)...${NC}"
             docker compose -f docker-compose-qwen7b.yml logs -f
+        elif docker ps --format '{{.Names}}' | grep -q "pytorch-finetune"; then
+            echo -e "${CYAN}Following logs (Ctrl+C to exit)...${NC}"
+            docker compose -f docker-compose-finetune.yml logs -f
         else
-            echo -e "${YELLOW}No vLLM containers running${NC}"
+            echo -e "${YELLOW}No containers running${NC}"
         fi
     fi
 }
