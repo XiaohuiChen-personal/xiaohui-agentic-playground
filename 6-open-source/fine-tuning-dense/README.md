@@ -1,8 +1,56 @@
-# Full Fine-Tuning: Qwen2.5-7B on AG News
+# Fine-Tuning Qwen2.5-7B on AG News
 
-This folder contains a complete **full fine-tuning** experiment that trained Qwen2.5-7B-Instruct on the AG News text classification dataset, achieving **88.33% accuracy** (up from 78.63% baseline).
+This folder contains fine-tuning experiments for Qwen2.5-7B-Instruct on the AG News text classification dataset. Three methods are supported: **Full Fine-Tuning**, **LoRA**, and **QLoRA**.
 
-## Overview
+## Quick Comparison: Three Fine-Tuning Methods
+
+| Method | Parameters Updated | Memory | Training Time | Output Size | Best For |
+|--------|-------------------|--------|---------------|-------------|----------|
+| **Full** | 7.6B (100%) | ~70 GB | ~10 hours | ~14 GB | Maximum accuracy |
+| **LoRA** | ~70M (1%) | ~20-25 GB | ~2-4 hours | ~200 MB | Good accuracy, faster |
+| **QLoRA** | ~70M (1%) | ~8-12 GB | ~2-4 hours | ~200 MB | Memory-constrained |
+
+---
+
+## Quick Start: Run Any Method
+
+### Method 1: Full Fine-Tuning
+
+```bash
+cd ~/Projects/xiaohui-agentic-playground/6-open-source
+
+# Start training container (Jupyter on port 8888)
+./start_docker.sh start finetune
+
+# Open http://localhost:8888
+# Run: fine_tuning_full.ipynb
+```
+
+### Method 2: LoRA Fine-Tuning
+
+```bash
+cd ~/Projects/xiaohui-agentic-playground/6-open-source
+
+# Start PEFT container with Unsloth (Jupyter on port 8889)
+./start_docker.sh start peft
+
+# Open http://localhost:8889
+# Run: fine_tuning_peft.ipynb (in /fine-tuning-peft/)
+```
+
+### Method 3: QLoRA Fine-Tuning
+
+```bash
+# Same container as LoRA
+./start_docker.sh start peft
+
+# Open http://localhost:8889
+# The only difference is in code: load_in_4bit=True
+```
+
+---
+
+## Results: Full Fine-Tuning (Completed)
 
 | Aspect | Details |
 |--------|---------|
@@ -17,7 +65,83 @@ This folder contains a complete **full fine-tuning** experiment that trained Qwe
 
 ---
 
-## Why Full Fine-Tuning?
+## When to Use Each Method
+
+### Full Fine-Tuning
+- **Use when**: Maximum accuracy is critical, you have ~70+ GB GPU memory
+- **Pros**: Best possible quality, all parameters optimized for your task
+- **Cons**: Longest training time, largest output, risk of overfitting
+
+### LoRA (Low-Rank Adaptation)
+- **Use when**: Good accuracy with faster training, ~20-25 GB GPU memory
+- **Pros**: 2-4x faster, small adapter files, easy to swap adapters
+- **Cons**: Slightly lower accuracy ceiling than full fine-tuning
+
+### QLoRA (Quantized LoRA)
+- **Use when**: Memory is limited (~8-12 GB), or fine-tuning larger models
+- **Pros**: Most memory-efficient, enables fine-tuning models that wouldn't otherwise fit
+- **Cons**: Potential quality loss from 4-bit quantization
+
+---
+
+## Docker Containers
+
+Both fine-tuning methods use NVIDIA Docker containers for optimal performance on DGX Spark:
+
+| Container | Purpose | Port | Command |
+|-----------|---------|------|---------|
+| `pytorch-finetune` | Full fine-tuning | 8888 | `./start_docker.sh start finetune` |
+| `pytorch-peft` | LoRA/QLoRA with Unsloth | 8889 | `./start_docker.sh start peft` |
+
+### Common Commands
+
+```bash
+# Check status
+./start_docker.sh status
+
+# View logs
+./start_docker.sh logs finetune   # Full fine-tuning
+./start_docker.sh logs peft       # LoRA/QLoRA
+
+# Stop all containers
+./start_docker.sh stop
+```
+
+---
+
+## Code Difference: LoRA vs QLoRA
+
+The only difference is how you load the model:
+
+```python
+from unsloth import FastLanguageModel
+
+# LoRA (16-bit base model)
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="Qwen/Qwen2.5-7B-Instruct",
+    load_in_4bit=False,  # Full precision base model
+)
+
+# QLoRA (4-bit quantized base model)
+model, tokenizer = FastLanguageModel.from_pretrained(
+    model_name="Qwen/Qwen2.5-7B-Instruct",
+    load_in_4bit=True,   # 4-bit quantized base model
+)
+
+# Both use the same LoRA configuration
+model = FastLanguageModel.get_peft_model(
+    model,
+    r=16,                # LoRA rank
+    lora_alpha=32,       # LoRA scaling
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
+)
+```
+
+---
+
+## Full Fine-Tuning Details
+
+### Why Full Fine-Tuning?
 
 | Aspect | Full Fine-Tuning | LoRA/QLoRA |
 |--------|------------------|------------|
@@ -144,27 +268,27 @@ DATALOADER_NUM_WORKERS = 4  # Parallel data loading
 ## File Structure
 
 ```
-fine-tuning-dense/
-├── fine_tuning_full.ipynb           # Main training notebook (run in Docker)
-├── full_finetuning_performance.ipynb # Fine-tuned model evaluation (88.33% accuracy)
-├── base_model_performance.ipynb     # Base model evaluation (78.63% accuracy)
-├── finetuned_model_results.json     # Fine-tuned model metrics
-├── base_model_results.json          # Base model metrics
-├── checkpoints/                     # Fine-tuned model weights
-│   └── qwen7b-ag-news-full/         # Training checkpoints
-│       └── final/                   # Final model (~14 GB)
-├── adapters/                        # LoRA adapter weights (for future use)
-├── datasets/                        # Prepared training data
-│   └── train.jsonl                  # 120K examples in chat format
-├── data_prep/                       # Dataset preparation scripts
-│   ├── convert_dataset.py           # Convert AG News to chat format
-│   ├── config.py                    # Prompts and category definitions
-│   └── README.md                    # Data preparation docs
-├── confusion_matrix.png             # Base model confusion matrix
-├── finetuned_confusion_matrix.png   # Fine-tuned model confusion matrix
-├── ag_news_distribution.png         # Dataset category distribution
-├── ag_news_text_lengths.png         # Dataset text length analysis
-└── README.md                        # This file
+6-open-source/
+├── fine-tuning-dense/               # Full fine-tuning (this folder)
+│   ├── fine_tuning_full.ipynb       # Main training notebook (run in Docker)
+│   ├── full_finetuning_performance.ipynb # Fine-tuned model evaluation
+│   ├── base_model_performance.ipynb # Base model evaluation (78.63% accuracy)
+│   ├── finetuned_model_results.json # Fine-tuned model metrics
+│   ├── base_model_results.json      # Base model metrics
+│   ├── checkpoints/                 # Fine-tuned model weights (~14 GB)
+│   ├── datasets/                    # Prepared training data (train.jsonl)
+│   ├── data_prep/                   # Dataset preparation scripts
+│   └── README.md                    # This file
+│
+├── fine-tuning-peft/                # LoRA/QLoRA fine-tuning
+│   ├── fine_tuning_peft.ipynb       # LoRA/QLoRA notebook (run in Docker)
+│   ├── adapters/                    # LoRA adapter output (~200 MB)
+│   ├── checkpoints/                 # Training checkpoints
+│   └── datasets/                    # Can use ../fine-tuning-dense/datasets/
+│
+├── docker-compose-finetune.yml      # Full fine-tuning container config
+├── docker-compose-peft.yml          # LoRA/QLoRA container config (with Unsloth)
+└── start_docker.sh                  # Container management script
 ```
 
 ---
@@ -354,9 +478,10 @@ docker exec pytorch-finetune nvidia-smi
 ### Next Steps
 
 1. ✅ **Completed**: Full fine-tuning with 88.33% accuracy
-2. **Deploy**: Serve the fine-tuned model with vLLM for production use
-3. **Compare**: Try LoRA/QLoRA fine-tuning (faster training, smaller model files)
-4. **Iterate**: Consider 2 epochs to potentially recover some Sports performance
+2. ✅ **Ready**: LoRA/QLoRA containers configured (`./start_docker.sh start peft`)
+3. **Compare**: Run LoRA/QLoRA on same dataset to compare accuracy vs training time
+4. **Deploy**: Serve the fine-tuned model with vLLM for production use
+5. **Iterate**: Consider 2 epochs to potentially recover some Sports performance
 
 ---
 

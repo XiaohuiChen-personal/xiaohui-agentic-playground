@@ -76,14 +76,16 @@ show_help() {
     echo "  qwen7b   - Run Qwen2.5-7B (dense) for fine-tuning practice"
     echo ""
     echo "Modes (Training):"
-    echo "  finetune - Start PyTorch training container with Jupyter (port 8888)"
+    echo "  finetune - Full fine-tuning container with Jupyter (port 8888)"
+    echo "  peft     - LoRA/QLoRA fine-tuning with Unsloth (port 8889)"
     echo ""
     echo "Examples:"
     echo "  $0 start single    # Start single 70B model"
     echo "  $0 start dual      # Start dual medium models"
     echo "  $0 start gpt-oss   # Start GPT-OSS-20B for fine-tuning/batch inference"
     echo "  $0 start qwen7b    # Start Qwen2.5-7B for fine-tuning practice"
-    echo "  $0 start finetune  # Start training container with Jupyter"
+    echo "  $0 start finetune  # Start full fine-tuning container"
+    echo "  $0 start peft      # Start LoRA/QLoRA fine-tuning with Unsloth"
     echo "  $0 logs            # Follow all logs"
     echo "  $0 stop            # Stop all containers"
     echo ""
@@ -111,9 +113,13 @@ set_mode() {
             COMPOSE_FILE="docker-compose-finetune.yml"
             MODE="finetune"
             ;;
+        peft|lora|qlora|unsloth)
+            COMPOSE_FILE="docker-compose-peft.yml"
+            MODE="peft"
+            ;;
         *)
             echo -e "${RED}Unknown mode: $1${NC}"
-            echo "Use 'single', 'dual', 'gpt-oss', 'qwen7b', or 'finetune'"
+            echo "Use 'single', 'dual', 'gpt-oss', 'qwen7b', 'finetune', or 'peft'"
             exit 1
             ;;
     esac
@@ -130,18 +136,19 @@ start_servers() {
     echo ""
     
     # Check if other containers are running
-    if docker ps --format '{{.Names}}' | grep -qE "vllm-|pytorch-finetune"; then
+    if docker ps --format '{{.Names}}' | grep -qE "vllm-|pytorch-finetune|pytorch-peft"; then
         echo -e "${YELLOW}Stopping existing containers...${NC}"
         docker compose -f docker-compose-single.yml down 2>/dev/null || true
         docker compose -f docker-compose-dual-medium.yml down 2>/dev/null || true
         docker compose -f docker-compose-gpt-oss.yml down 2>/dev/null || true
         docker compose -f docker-compose-qwen7b.yml down 2>/dev/null || true
         docker compose -f docker-compose-finetune.yml down 2>/dev/null || true
+        docker compose -f docker-compose-peft.yml down 2>/dev/null || true
         echo ""
     fi
     
     # Pull appropriate image based on mode
-    if [ "$MODE" = "finetune" ]; then
+    if [ "$MODE" = "finetune" ] || [ "$MODE" = "peft" ]; then
         echo -e "${CYAN}Pulling NVIDIA PyTorch image (for training)...${NC}"
         docker pull nvcr.io/nvidia/pytorch:25.11-py3
     else
@@ -265,6 +272,36 @@ start_servers() {
         echo "  $0 status  - Check container status"
         echo "  $0 logs finetune - View container logs"
         echo "  $0 stop    - Stop container"
+    elif [ "$MODE" = "peft" ]; then
+        echo -e "${GREEN}PEFT (LoRA/QLoRA) fine-tuning container starting!${NC}"
+        echo ""
+        echo "Container: nvcr.io/nvidia/pytorch:25.11-py3 + Unsloth"
+        echo ""
+        echo "Supported Methods:"
+        echo "  - LoRA:  16-bit base model, train small adapters"
+        echo "  - QLoRA: 4-bit quantized base model, even less memory"
+        echo ""
+        echo "Features:"
+        echo "  - Unsloth: 2x faster training, 60% less memory"
+        echo "  - Native sm_120/121 CUDA kernels (optimized for Blackwell)"
+        echo "  - Transformer Engine 2.9+ with FP8 support"
+        echo "  - Flash Attention 2 compiled for Blackwell"
+        echo ""
+        echo "Access:"
+        echo "  - Jupyter Lab: http://localhost:8889"
+        echo "  - TensorBoard: http://localhost:6007 (if enabled)"
+        echo ""
+        echo "Working Directory: /fine-tuning"
+        echo "  - Notebooks: Create your LoRA/QLoRA notebook here"
+        echo "  - Datasets:  /fine-tuning-dense/datasets/ (shared)"
+        echo "  - Output:    adapters/"
+        echo ""
+        echo "Note: Unsloth installation takes 2-3 minutes on first run."
+        echo ""
+        echo "Commands:"
+        echo "  $0 status  - Check container status"
+        echo "  $0 logs peft - View container logs"
+        echo "  $0 stop    - Stop container"
     else
         echo -e "${GREEN}============================================${NC}"
         echo -e "${GREEN}  Both models are ready!${NC}"
@@ -294,6 +331,7 @@ stop_servers() {
     docker compose -f docker-compose-gpt-oss.yml down 2>/dev/null || true
     docker compose -f docker-compose-qwen7b.yml down 2>/dev/null || true
     docker compose -f docker-compose-finetune.yml down 2>/dev/null || true
+    docker compose -f docker-compose-peft.yml down 2>/dev/null || true
     echo -e "${GREEN}All containers stopped${NC}"
 }
 
@@ -303,8 +341,8 @@ show_status() {
     echo -e "${GREEN}============================================${NC}"
     echo ""
     
-    # Show running containers (vLLM and finetune)
-    CONTAINERS=$(docker ps --filter "name=vllm-" --filter "name=pytorch-finetune" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null)
+    # Show running containers (vLLM, finetune, and peft)
+    CONTAINERS=$(docker ps --filter "name=vllm-" --filter "name=pytorch-finetune" --filter "name=pytorch-peft" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null)
     if [ -n "$CONTAINERS" ] && [ "$(echo "$CONTAINERS" | wc -l)" -gt 1 ]; then
         echo -e "${CYAN}Running Containers:${NC}"
         echo "$CONTAINERS"
@@ -316,7 +354,8 @@ show_status() {
         echo "  $0 start dual     # Two medium models"
         echo "  $0 start gpt-oss  # GPT-OSS-20B for fine-tuning/batch"
         echo "  $0 start qwen7b   # Qwen2.5-7B for fine-tuning practice"
-        echo "  $0 start finetune # Training container with Jupyter"
+        echo "  $0 start finetune # Full fine-tuning container"
+        echo "  $0 start peft     # LoRA/QLoRA fine-tuning with Unsloth"
         return
     fi
     
@@ -342,9 +381,18 @@ show_status() {
     # Check finetune container (Jupyter on port 8888)
     if docker ps --format '{{.Names}}' | grep -q "pytorch-finetune"; then
         if curl -s http://localhost:8888/api > /dev/null 2>&1; then
-            echo -e "  Port 8888: ${GREEN}● Jupyter Ready${NC} (Training Container)"
+            echo -e "  Port 8888: ${GREEN}● Jupyter Ready${NC} (Full Fine-tuning)"
         else
-            echo -e "  Port 8888: ${YELLOW}● Starting...${NC} (Training Container)"
+            echo -e "  Port 8888: ${YELLOW}● Starting...${NC} (Full Fine-tuning)"
+        fi
+    fi
+    
+    # Check PEFT container (Jupyter on port 8889)
+    if docker ps --format '{{.Names}}' | grep -q "pytorch-peft"; then
+        if curl -s http://localhost:8889/api > /dev/null 2>&1; then
+            echo -e "  Port 8889: ${GREEN}● Jupyter Ready${NC} (PEFT + Unsloth)"
+        else
+            echo -e "  Port 8889: ${YELLOW}● Starting...${NC} (PEFT + Unsloth)"
         fi
     fi
     
@@ -381,6 +429,10 @@ show_logs() {
                 echo -e "${CYAN}Following logs for pytorch-finetune (Ctrl+C to exit)...${NC}"
                 docker logs -f pytorch-finetune
                 ;;
+            peft|lora|qlora|unsloth)
+                echo -e "${CYAN}Following logs for pytorch-peft (Ctrl+C to exit)...${NC}"
+                docker logs -f pytorch-peft
+                ;;
             *)
                 echo -e "${CYAN}Following logs for $CONTAINER (Ctrl+C to exit)...${NC}"
                 docker logs -f "$CONTAINER"
@@ -403,6 +455,9 @@ show_logs() {
         elif docker ps --format '{{.Names}}' | grep -q "pytorch-finetune"; then
             echo -e "${CYAN}Following logs (Ctrl+C to exit)...${NC}"
             docker compose -f docker-compose-finetune.yml logs -f
+        elif docker ps --format '{{.Names}}' | grep -q "pytorch-peft"; then
+            echo -e "${CYAN}Following logs (Ctrl+C to exit)...${NC}"
+            docker compose -f docker-compose-peft.yml logs -f
         else
             echo -e "${YELLOW}No containers running${NC}"
         fi

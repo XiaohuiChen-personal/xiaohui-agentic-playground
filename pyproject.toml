@@ -25,7 +25,36 @@ dependencies = [
     "autogen-ext>=0.7.5",
 ]
 
-# Note: Fine-tuning dependencies (torch, transformers, trl, etc.) are NOT included here.
-# Full fine-tuning runs inside NVIDIA's PyTorch Docker container (nvcr.io/nvidia/pytorch:25.11-py3)
-# which provides native sm_121 support for DGX Spark's Blackwell GB10 GPU.
-# See 6-open-source/README.md for fine-tuning instructions.
+# =============================================================================
+# Fine-Tuning Dependencies
+# =============================================================================
+# All fine-tuning runs inside NVIDIA Docker containers because DGX Spark
+# (aarch64 + Blackwell sm_121) requires native CUDA kernels.
+#
+# Three fine-tuning methods are supported:
+#
+# 1. FULL FINE-TUNING (100% of parameters)
+#    - Container: nvcr.io/nvidia/pytorch:25.11-py3
+#    - Command:   ./start_docker.sh start finetune
+#    - Jupyter:   http://localhost:8888
+#    - Memory:    ~70 GB (requires stopping inference containers)
+#    - Time:      ~10 hours for Qwen2.5-7B
+#    - Output:    New model weights (~14 GB)
+#
+# 2. LoRA (Low-Rank Adaptation, ~1% of parameters)
+#    - Container: nvcr.io/nvidia/pytorch:25.11-py3 + Unsloth
+#    - Command:   ./start_docker.sh start peft
+#    - Jupyter:   http://localhost:8889
+#    - Memory:    ~20-25 GB
+#    - Time:      ~2-4 hours
+#    - Output:    Small adapter (~200 MB)
+#
+# 3. QLoRA (Quantized LoRA, 4-bit base model)
+#    - Container: Same as LoRA (peft container)
+#    - Command:   ./start_docker.sh start peft
+#    - Jupyter:   http://localhost:8889
+#    - Memory:    ~8-12 GB (most memory-efficient)
+#    - Time:      ~2-4 hours
+#    - Output:    Small adapter (~200 MB)
+#
+# See 6-open-source/fine-tuning-dense/README.md for detailed instructions.
