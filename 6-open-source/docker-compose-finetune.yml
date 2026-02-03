@@ -1,21 +1,27 @@
 # =============================================================================
-# Docker Compose for Full Fine-Tuning on DGX Spark
+# Docker Compose for Fine-Tuning on DGX Spark
 # =============================================================================
-# Uses NVIDIA's PyTorch container with Transformer Engine for optimal
-# performance on Blackwell GB10 (sm_121).
+# Uses Unsloth's DGX Spark optimizations for maximum performance:
 #
-# Features:
-# - Native sm_120/121 CUDA kernels (no fallback mode)
-# - Transformer Engine 2.9+ with NVFP4/FP8 support
-# - Flash Attention 2 compiled for Blackwell
-# - Triton with optimized kernels
-# - Jupyter Lab for interactive development
+# Key Optimizations (built into the image):
+# - Triton compiled from source for Blackwell (sm_121) support
+# - xformers v0.0.33 compiled with TORCH_CUDA_ARCH_LIST="12.1"
+# - Unsloth optimized kernels for 2x faster training
+# - Flash Attention 2 for efficient attention
+#
+# Supported Methods:
+# - Full Fine-Tuning: Update all model parameters
+# - LoRA: Low-Rank Adaptation (16-bit base model)
+# - QLoRA: Quantized LoRA (4-bit base model, even less memory)
 #
 # Usage:
-#   ./start_docker.sh start finetune    # Start container with Jupyter
+#   ./start_docker.sh start finetune    # Build (first time) and start
 #   ./start_docker.sh stop              # Stop container
 #   ./start_docker.sh logs finetune     # View logs
 #   ./start_docker.sh status            # Check status
+#
+# First-time build takes ~8-10 minutes (compiling Triton and xformers)
+# Subsequent starts are fast (<10 seconds)
 #
 # Access Jupyter at: http://localhost:8888
 # =============================================================================
@@ -23,7 +29,14 @@
 services:
   finetune:
     container_name: pytorch-finetune
-    image: nvcr.io/nvidia/pytorch:25.11-py3
+    
+    # Build from DGX Spark optimized Dockerfile
+    build:
+      context: ./fine-tuning-dense
+      dockerfile: Dockerfile.dgx-spark
+    
+    # Use built image (tag for caching)
+    image: unsloth-dgx-spark:latest
     
     # GPU access
     deploy:
@@ -45,7 +58,7 @@ services:
       - ../:/workspace
       # Mount HuggingFace cache for model weights
       - ~/.cache/huggingface:/root/.cache/huggingface
-      # Mount the fine-tuning directory specifically
+      # Mount the fine-tuning directory
       - ./fine-tuning-dense:/fine-tuning
     
     # Working directory
@@ -62,6 +75,8 @@ services:
       - NVIDIA_TF32_OVERRIDE=1
       # Disable tokenizers parallelism warning
       - TOKENIZERS_PARALLELISM=false
+      # Unsloth optimizations
+      - UNSLOTH_RETURN_LOGITS=1
     
     # Resource limits
     shm_size: '32gb'
@@ -69,19 +84,27 @@ services:
       memlock: -1
       stack: 67108864
     
-    # Keep container running and start Jupyter
+    # Startup command
     command: >
       bash -c "
-        echo '============================================'
-        echo '  NVIDIA PyTorch Container for Fine-Tuning'
-        echo '============================================'
+        echo '=============================================='
+        echo '  Fine-Tuning on DGX Spark (Unsloth Optimized)'
+        echo '=============================================='
         echo ''
-        echo 'Container: nvcr.io/nvidia/pytorch:25.11-py3'
+        echo 'Optimizations (pre-built in image):'
+        echo '  ✓ Triton compiled for Blackwell (sm_121)'
+        echo '  ✓ xformers v0.0.33 compiled for sm_121'
+        echo '  ✓ Unsloth optimized kernels (2x faster)'
+        echo '  ✓ Flash Attention 2'
+        echo '  ✓ bitsandbytes 4-bit quantization'
+        echo ''
         echo 'GPU: '$(nvidia-smi --query-gpu=name --format=csv,noheader)
-        echo 'CUDA: '$(nvcc --version | grep release | awk '{print $6}')
+        echo 'CUDA: '$(nvcc --version | grep release | awk '{print $6}' || echo 'N/A')
         echo ''
-        echo 'Installing additional packages...'
-        pip install -q trl>=0.27.0 peft>=0.18.0 datasets>=4.0.0 scikit-learn matplotlib
+        echo 'Supported Methods:'
+        echo '  - Full Fine-Tuning: fine_tuning_full.ipynb or fine_tuning_full_unsloth.ipynb'
+        echo '  - LoRA:             fine_tuning_lora.ipynb'
+        echo '  - QLoRA:            fine_tuning_qlora.ipynb'
         echo ''
         echo 'Starting Jupyter Lab...'
         echo 'Access at: http://localhost:8888'
@@ -95,4 +118,5 @@ services:
     # Labels for identification
     labels:
       - "com.nvidia.dgx-spark.purpose=fine-tuning"
-      - "com.nvidia.dgx-spark.model=qwen2.5-7b"
+      - "com.nvidia.dgx-spark.optimized=unsloth-dgx-spark"
+      - "com.nvidia.dgx-spark.framework=unsloth"

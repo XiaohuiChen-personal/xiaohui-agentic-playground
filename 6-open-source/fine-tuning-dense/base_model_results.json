@@ -1,51 +1,51 @@
 {
-  "model_name": "Qwen/Qwen2.5-7B-Instruct",
+  "model_name": "unsloth/Qwen2.5-7B-Instruct",
   "model_type": "base",
   "test_set_size": 7600,
   "successful_predictions": 7600,
   "failed_predictions": 0,
-  "total_time_seconds": 185.89770197868347,
-  "throughput_per_second": 40.88270010390703,
-  "avg_latency_ms": 1555.0824277935928,
+  "total_time_seconds": 190.3004653453827,
+  "throughput_per_second": 39.93684401247525,
+  "avg_latency_ms": 1560.848436623729,
   "metrics": {
-    "accuracy": 0.7863157894736842,
-    "precision_macro": 0.8184324348911818,
-    "precision_weighted": 0.8184324348911818,
-    "recall_macro": 0.7863157894736842,
-    "recall_weighted": 0.7863157894736842,
-    "f1_macro": 0.7779936799243927,
-    "f1_weighted": 0.7779936799243928
+    "accuracy": 0.7876315789473685,
+    "precision_macro": 0.8197732675107907,
+    "precision_weighted": 0.8197732675107907,
+    "recall_macro": 0.7876315789473683,
+    "recall_weighted": 0.7876315789473685,
+    "f1_macro": 0.779651491458816,
+    "f1_weighted": 0.779651491458816
   },
   "per_class_f1": {
-    "World": 0.8299352362676901,
-    "Sports": 0.9362045760430686,
-    "Business": 0.7299663299663299,
-    "Sci/Tech": 0.6158685774204824
+    "World": 0.8312124849939976,
+    "Sports": 0.9367429340511441,
+    "Business": 0.7300089847259659,
+    "Sci/Tech": 0.6206415620641562
   },
   "confusion_matrix": [
     [
-      1730,
-      56,
-      86,
-      28
+      1731,
+      55,
+      88,
+      26
     ],
     [
-      119,
-      1739,
+      118,
+      1740,
       40,
       2
     ],
     [
       219,
-      5,
-      1626,
+      6,
+      1625,
       50
     ],
     [
-      201,
-      15,
-      803,
-      881
+      197,
+      14,
+      799,
+      890
     ]
   ]
 }

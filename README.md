@@ -137,13 +137,17 @@ xiaohui-agentic-playground/
 │       ├── email_battle_autogen.ipynb  # Notebook implementation
 │       └── README.md            # Detailed documentation
 ├── 6-open-source/
-│   ├── docker-compose-*.yml     # vLLM + PyTorch container configurations
+│   ├── docker-compose-*.yml     # vLLM + Unsloth container configurations
 │   ├── start_docker.sh          # Docker management script (inference + training)
-│   ├── fine-tuning-dense/       # Full fine-tuning experiments
-│   │   ├── fine_tuning_full.ipynb # Full fine-tuning notebook (Docker)
+│   ├── fine-tuning-dense/       # All fine-tuning experiments
+│   │   ├── Dockerfile.dgx-spark # DGX Spark optimized Dockerfile
+│   │   ├── fine_tuning_full.ipynb # Full fine-tuning notebook
+│   │   ├── fine_tuning_lora.ipynb # LoRA fine-tuning notebook
+│   │   ├── fine_tuning_qlora.ipynb # QLoRA fine-tuning notebook
 │   │   ├── base_model_performance.ipynb # Base model evaluation
 │   │   ├── datasets/            # Training data (120K examples)
 │   │   ├── checkpoints/         # Fine-tuned model weights
+│   │   ├── adapters/            # LoRA adapter weights
 │   │   └── data_prep/           # Dataset preparation scripts
 │   ├── email_battle_open_source/ # Email Battle with local models
 │   │   ├── src/email_battle/    # CrewAI Flow implementation
@@ -405,13 +409,14 @@ Run **open-source LLMs locally** on NVIDIA DGX Spark using **vLLM** with Docker,
 
 | Method | Container | Time | Use Case |
 |--------|-----------|------|----------|
-| **Full Fine-Tuning** | `nvcr.io/nvidia/pytorch:25.11-py3` | 8-15 hours | Maximum quality |
-| **LoRA/QLoRA** | Unsloth (venv) | 2-4 hours | Memory efficient |
+| **Full Fine-Tuning** | `unsloth-dgx-spark:latest` | ~10 hours | Maximum quality |
+| **LoRA** | `unsloth-dgx-spark:latest` | ~4-6 hours | Good balance |
+| **QLoRA** | `unsloth-dgx-spark:latest` | ~6-8 hours | Memory efficient |
 
 **Key Features:**
 - OpenAI-compatible API (drop-in replacement)
 - GPT-OSS-20B: MoE architecture, 4x faster than dense models
-- Full fine-tuning with NVIDIA Docker (native sm_121 support)
+- Full/LoRA/QLoRA fine-tuning with Unsloth Docker (native sm_121 support)
 - Jupyter Lab for interactive training
 - NVFP4/MXFP4 quantization for Blackwell GPUs
 - Up to 128K context windows
@@ -427,6 +432,7 @@ cd 6-open-source
 # Training (stop inference first!)
 ./start_docker.sh stop
 ./start_docker.sh start finetune  # Opens Jupyter at http://localhost:8888
+# Notebooks: fine_tuning_full.ipynb, fine_tuning_lora.ipynb, fine_tuning_qlora.ipynb
 
 ./start_docker.sh status         # Check health
 ```

@@ -1,7 +1,7 @@
 # Qwen2.5-7B Configuration for DGX Spark
 # Dense 7B model for fine-tuning practice and inference
 #
-# Model: Qwen/Qwen2.5-7B-Instruct
+# Model: unsloth/Qwen2.5-7B-Instruct (optimized version)
 # Architecture: Dense Transformer (7B parameters)
 # Context: 128K tokens (can reduce for faster inference)
 #
@@ -11,7 +11,7 @@
 # - Fast inference baseline
 #
 # Memory Usage:
-# - Model weights: ~14 GB (FP16) or ~4 GB (INT4)
+# - Model weights: ~14 GB (BF16)
 # - KV cache: Scales with context length
 # - Total: ~20-30 GB with 32K context
 #
@@ -32,22 +32,10 @@ services:
       - HF_HOME=/root/.cache/huggingface
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
-      # Mount for fine-tuned model checkpoints
-      - ./fine-tuning-dense/checkpoints:/checkpoints
     ports:
       - "8000:8000"
-    # =======================================================================
-    # MODEL SELECTION: Uncomment ONE of the following model configurations
-    # =======================================================================
-    # 
-    # Option 1: Base Model (for LoRA fine-tuning or baseline testing)
-    # Option 2: Full Fine-Tuned Model (88.33% accuracy on AG News)
-    # Option 3: LoRA Fine-Tuned Model (after LoRA training)
-    #
-    # After changing, restart with: ./start_docker.sh stop && ./start_docker.sh start qwen7b
-    # =======================================================================
     command: >
-      vllm serve Qwen/Qwen2.5-7B-Instruct
+      vllm serve unsloth/Qwen2.5-7B-Instruct
       --host 0.0.0.0
       --port 8000
       --gpu-memory-utilization 0.85
@@ -55,32 +43,6 @@ services:
       --max-model-len 32768
       --dtype auto
       --trust-remote-code
-    # -----------------------------------------------------------------------
-    # Option 2: Full Fine-Tuned Model (uncomment below, comment above)
-    # -----------------------------------------------------------------------
-    # command: >
-    #   vllm serve /checkpoints/qwen7b-ag-news-full/final
-    #   --host 0.0.0.0
-    #   --port 8000
-    #   --gpu-memory-utilization 0.85
-    #   --max-num-seqs 64
-    #   --max-model-len 4096
-    #   --dtype auto
-    #   --trust-remote-code
-    # -----------------------------------------------------------------------
-    # Option 3: LoRA Fine-Tuned Model (uncomment below after LoRA training)
-    # -----------------------------------------------------------------------
-    # command: >
-    #   vllm serve Qwen/Qwen2.5-7B-Instruct
-    #   --host 0.0.0.0
-    #   --port 8000
-    #   --gpu-memory-utilization 0.85
-    #   --max-num-seqs 64
-    #   --max-model-len 32768
-    #   --dtype auto
-    #   --trust-remote-code
-    #   --enable-lora
-    #   --lora-modules lora-agnews=/checkpoints/qwen7b-ag-news-lora
     deploy:
       resources:
         reservations:
@@ -95,19 +57,3 @@ services:
       timeout: 10s
       retries: 3
       start_period: 120s
-
-# =============================================================================
-# MODEL OPTIONS SUMMARY
-# =============================================================================
-#
-# | Option | Model | Accuracy | Use Case |
-# |--------|-------|----------|----------|
-# | 1 | Qwen/Qwen2.5-7B-Instruct | 78.63% | Base model, LoRA training |
-# | 2 | qwen7b-ag-news-full | 88.33% | Full fine-tuned (best quality) |
-# | 3 | Base + LoRA adapter | TBD | LoRA fine-tuned (faster training) |
-#
-# To switch models:
-# 1. Comment out the current 'command:' block
-# 2. Uncomment the desired 'command:' block
-# 3. Restart: ./start_docker.sh stop && ./start_docker.sh start qwen7b
-# =============================================================================

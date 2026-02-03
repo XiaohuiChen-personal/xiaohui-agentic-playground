@@ -68,6 +68,7 @@ show_help() {
     echo "  $0 status               Show server status"
     echo "  $0 logs [container]     Show logs (follow mode)"
     echo "  $0 pull                 Pull latest vLLM image"
+    echo "  $0 build finetune       Build optimized fine-tuning image (first time only)"
     echo ""
     echo "Modes (Inference):"
     echo "  single   - Run one 70B model (Llama 3.3 70B NVFP4) on port 8000"
@@ -76,16 +77,16 @@ show_help() {
     echo "  qwen7b   - Run Qwen2.5-7B (dense) for fine-tuning practice"
     echo ""
     echo "Modes (Training):"
-    echo "  finetune - Full fine-tuning container with Jupyter (port 8888)"
-    echo "  peft     - LoRA/QLoRA fine-tuning with Unsloth (port 8889)"
+    echo "  finetune - All fine-tuning methods (Full/LoRA/QLoRA) with Unsloth (port 8888)"
+    echo "             First run builds image (~8-10 min), subsequent starts are fast"
     echo ""
     echo "Examples:"
     echo "  $0 start single    # Start single 70B model"
     echo "  $0 start dual      # Start dual medium models"
     echo "  $0 start gpt-oss   # Start GPT-OSS-20B for fine-tuning/batch inference"
     echo "  $0 start qwen7b    # Start Qwen2.5-7B for fine-tuning practice"
-    echo "  $0 start finetune  # Start full fine-tuning container"
-    echo "  $0 start peft      # Start LoRA/QLoRA fine-tuning with Unsloth"
+    echo "  $0 start finetune  # Start fine-tuning container (Full/LoRA/QLoRA)"
+    echo "  $0 build finetune  # Build optimized fine-tuning image (explicit)"
     echo "  $0 logs            # Follow all logs"
     echo "  $0 stop            # Stop all containers"
     echo ""
@@ -109,17 +110,13 @@ set_mode() {
             COMPOSE_FILE="docker-compose-qwen7b.yml"
             MODE="qwen7b"
             ;;
-        finetune|ft|train)
+        finetune|ft|train|peft|lora|qlora|unsloth)
             COMPOSE_FILE="docker-compose-finetune.yml"
             MODE="finetune"
             ;;
-        peft|lora|qlora|unsloth)
-            COMPOSE_FILE="docker-compose-peft.yml"
-            MODE="peft"
-            ;;
         *)
             echo -e "${RED}Unknown mode: $1${NC}"
-            echo "Use 'single', 'dual', 'gpt-oss', 'qwen7b', 'finetune', or 'peft'"
+            echo "Use 'single', 'dual', 'gpt-oss', 'qwen7b', or 'finetune'"
             exit 1
             ;;
     esac
@@ -136,21 +133,34 @@ start_servers() {
     echo ""
     
     # Check if other containers are running
-    if docker ps --format '{{.Names}}' | grep -qE "vllm-|pytorch-finetune|pytorch-peft"; then
+    if docker ps --format '{{.Names}}' | grep -qE "vllm-|pytorch-finetune"; then
         echo -e "${YELLOW}Stopping existing containers...${NC}"
         docker compose -f docker-compose-single.yml down 2>/dev/null || true
         docker compose -f docker-compose-dual-medium.yml down 2>/dev/null || true
         docker compose -f docker-compose-gpt-oss.yml down 2>/dev/null || true
         docker compose -f docker-compose-qwen7b.yml down 2>/dev/null || true
         docker compose -f docker-compose-finetune.yml down 2>/dev/null || true
-        docker compose -f docker-compose-peft.yml down 2>/dev/null || true
         echo ""
     fi
     
-    # Pull appropriate image based on mode
-    if [ "$MODE" = "finetune" ] || [ "$MODE" = "peft" ]; then
-        echo -e "${CYAN}Pulling NVIDIA PyTorch image (for training)...${NC}"
-        docker pull nvcr.io/nvidia/pytorch:25.11-py3
+    # Pull or build appropriate image based on mode
+    if [ "$MODE" = "finetune" ]; then
+        # Check if optimized image exists
+        if docker images -q unsloth-dgx-spark:latest 2>/dev/null | grep -q .; then
+            echo -e "${GREEN}Using cached unsloth-dgx-spark:latest image${NC}"
+        else
+            echo -e "${YELLOW}============================================${NC}"
+            echo -e "${YELLOW}  Building DGX Spark Optimized Image${NC}"
+            echo -e "${YELLOW}============================================${NC}"
+            echo ""
+            echo "This builds Triton and xformers from source for Blackwell (sm_121)."
+            echo "First-time build takes ~8-10 minutes. Subsequent starts are fast."
+            echo ""
+            echo -e "${CYAN}Building unsloth-dgx-spark:latest...${NC}"
+            docker compose -f "$COMPOSE_FILE" build
+            echo ""
+            echo -e "${GREEN}Build complete!${NC}"
+        fi
     else
         echo -e "${CYAN}Pulling NVIDIA vLLM image (CUDA 13.1)...${NC}"
         docker pull nvcr.io/nvidia/vllm:25.12-py3
@@ -249,58 +259,33 @@ start_servers() {
         echo "  $0 logs    - View download/startup progress"
         echo "  $0 stop    - Stop server"
     elif [ "$MODE" = "finetune" ]; then
-        echo -e "${GREEN}Training container starting!${NC}"
+        echo -e "${GREEN}Fine-tuning container starting!${NC}"
         echo ""
-        echo "Container: nvcr.io/nvidia/pytorch:25.11-py3"
+        echo "Image: unsloth-dgx-spark:latest (DGX Spark Optimized)"
         echo ""
-        echo "Features:"
-        echo "  - Native sm_120/121 CUDA kernels (optimized for Blackwell)"
-        echo "  - Transformer Engine 2.9+ with FP8 support"
-        echo "  - Flash Attention 2 compiled for Blackwell"
-        echo "  - Jupyter Lab for interactive development"
+        echo -e "${CYAN}DGX Spark Optimizations (pre-built):${NC}"
+        echo "  ✓ Triton compiled for Blackwell (sm_121)"
+        echo "  ✓ xformers v0.0.33 compiled for sm_121"
+        echo "  ✓ Unsloth optimized kernels (2x faster)"
+        echo "  ✓ bitsandbytes 4-bit quantization"
+        echo ""
+        echo "Supported Methods:"
+        echo "  - Full Fine-Tuning: fine_tuning_full.ipynb or fine_tuning_full_unsloth.ipynb"
+        echo "  - LoRA:             fine_tuning_lora.ipynb"
+        echo "  - QLoRA:            fine_tuning_qlora.ipynb"
         echo ""
         echo "Access:"
         echo "  - Jupyter Lab: http://localhost:8888"
         echo "  - TensorBoard: http://localhost:6006 (if enabled)"
         echo ""
         echo "Working Directory: /fine-tuning"
-        echo "  - Notebooks: fine_tuning_full.ipynb"
-        echo "  - Datasets:  datasets/train.jsonl"
-        echo "  - Output:    checkpoints/"
+        echo "  - Datasets:    datasets/"
+        echo "  - Checkpoints: checkpoints/"
+        echo "  - Adapters:    adapters/"
         echo ""
         echo "Commands:"
         echo "  $0 status  - Check container status"
         echo "  $0 logs finetune - View container logs"
-        echo "  $0 stop    - Stop container"
-    elif [ "$MODE" = "peft" ]; then
-        echo -e "${GREEN}PEFT (LoRA/QLoRA) fine-tuning container starting!${NC}"
-        echo ""
-        echo "Container: nvcr.io/nvidia/pytorch:25.11-py3 + Unsloth"
-        echo ""
-        echo "Supported Methods:"
-        echo "  - LoRA:  16-bit base model, train small adapters"
-        echo "  - QLoRA: 4-bit quantized base model, even less memory"
-        echo ""
-        echo "Features:"
-        echo "  - Unsloth: 2x faster training, 60% less memory"
-        echo "  - Native sm_120/121 CUDA kernels (optimized for Blackwell)"
-        echo "  - Transformer Engine 2.9+ with FP8 support"
-        echo "  - Flash Attention 2 compiled for Blackwell"
-        echo ""
-        echo "Access:"
-        echo "  - Jupyter Lab: http://localhost:8889"
-        echo "  - TensorBoard: http://localhost:6007 (if enabled)"
-        echo ""
-        echo "Working Directory: /fine-tuning"
-        echo "  - Notebooks: Create your LoRA/QLoRA notebook here"
-        echo "  - Datasets:  /fine-tuning-dense/datasets/ (shared)"
-        echo "  - Output:    adapters/"
-        echo ""
-        echo "Note: Unsloth installation takes 2-3 minutes on first run."
-        echo ""
-        echo "Commands:"
-        echo "  $0 status  - Check container status"
-        echo "  $0 logs peft - View container logs"
         echo "  $0 stop    - Stop container"
     else
         echo -e "${GREEN}============================================${NC}"
@@ -331,7 +316,6 @@ stop_servers() {
     docker compose -f docker-compose-gpt-oss.yml down 2>/dev/null || true
     docker compose -f docker-compose-qwen7b.yml down 2>/dev/null || true
     docker compose -f docker-compose-finetune.yml down 2>/dev/null || true
-    docker compose -f docker-compose-peft.yml down 2>/dev/null || true
     echo -e "${GREEN}All containers stopped${NC}"
 }
 
@@ -341,8 +325,8 @@ show_status() {
     echo -e "${GREEN}============================================${NC}"
     echo ""
     
-    # Show running containers (vLLM, finetune, and peft)
-    CONTAINERS=$(docker ps --filter "name=vllm-" --filter "name=pytorch-finetune" --filter "name=pytorch-peft" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null)
+    # Show running containers (vLLM and finetune)
+    CONTAINERS=$(docker ps --filter "name=vllm-" --filter "name=pytorch-finetune" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null)
     if [ -n "$CONTAINERS" ] && [ "$(echo "$CONTAINERS" | wc -l)" -gt 1 ]; then
         echo -e "${CYAN}Running Containers:${NC}"
         echo "$CONTAINERS"
@@ -354,8 +338,7 @@ show_status() {
         echo "  $0 start dual     # Two medium models"
         echo "  $0 start gpt-oss  # GPT-OSS-20B for fine-tuning/batch"
         echo "  $0 start qwen7b   # Qwen2.5-7B for fine-tuning practice"
-        echo "  $0 start finetune # Full fine-tuning container"
-        echo "  $0 start peft     # LoRA/QLoRA fine-tuning with Unsloth"
+        echo "  $0 start finetune # Fine-tuning container (Full/LoRA/QLoRA)"
         return
     fi
     
@@ -381,18 +364,9 @@ show_status() {
     # Check finetune container (Jupyter on port 8888)
     if docker ps --format '{{.Names}}' | grep -q "pytorch-finetune"; then
         if curl -s http://localhost:8888/api > /dev/null 2>&1; then
-            echo -e "  Port 8888: ${GREEN}● Jupyter Ready${NC} (Full Fine-tuning)"
+            echo -e "  Port 8888: ${GREEN}● Jupyter Ready${NC} (Fine-tuning)"
         else
-            echo -e "  Port 8888: ${YELLOW}● Starting...${NC} (Full Fine-tuning)"
-        fi
-    fi
-    
-    # Check PEFT container (Jupyter on port 8889)
-    if docker ps --format '{{.Names}}' | grep -q "pytorch-peft"; then
-        if curl -s http://localhost:8889/api > /dev/null 2>&1; then
-            echo -e "  Port 8889: ${GREEN}● Jupyter Ready${NC} (PEFT + Unsloth)"
-        else
-            echo -e "  Port 8889: ${YELLOW}● Starting...${NC} (PEFT + Unsloth)"
+            echo -e "  Port 8888: ${YELLOW}● Starting...${NC} (Fine-tuning)"
         fi
     fi
     
@@ -425,13 +399,9 @@ show_logs() {
     if [ -n "$CONTAINER" ]; then
         # Handle named containers or shortcuts
         case "$CONTAINER" in
-            finetune|ft|train)
+            finetune|ft|train|peft|lora|qlora|unsloth)
                 echo -e "${CYAN}Following logs for pytorch-finetune (Ctrl+C to exit)...${NC}"
                 docker logs -f pytorch-finetune
-                ;;
-            peft|lora|qlora|unsloth)
-                echo -e "${CYAN}Following logs for pytorch-peft (Ctrl+C to exit)...${NC}"
-                docker logs -f pytorch-peft
                 ;;
             *)
                 echo -e "${CYAN}Following logs for $CONTAINER (Ctrl+C to exit)...${NC}"
@@ -455,9 +425,6 @@ show_logs() {
         elif docker ps --format '{{.Names}}' | grep -q "pytorch-finetune"; then
             echo -e "${CYAN}Following logs (Ctrl+C to exit)...${NC}"
             docker compose -f docker-compose-finetune.yml logs -f
-        elif docker ps --format '{{.Names}}' | grep -q "pytorch-peft"; then
-            echo -e "${CYAN}Following logs (Ctrl+C to exit)...${NC}"
-            docker compose -f docker-compose-peft.yml logs -f
         else
             echo -e "${YELLOW}No containers running${NC}"
         fi
@@ -468,6 +435,44 @@ pull_image() {
     echo -e "${CYAN}Pulling NVIDIA vLLM image (CUDA 13.1)...${NC}"
     docker pull nvcr.io/nvidia/vllm:25.12-py3
     echo -e "${GREEN}Done!${NC}"
+}
+
+build_image() {
+    local mode="${1:-}"
+    
+    case "$mode" in
+        finetune|ft|train|peft|lora|qlora|unsloth)
+            echo -e "${GREEN}============================================${NC}"
+            echo -e "${GREEN}  Building DGX Spark Optimized Image${NC}"
+            echo -e "${GREEN}============================================${NC}"
+            echo ""
+            echo "This builds Triton and xformers from source for Blackwell (sm_121)."
+            echo "Build time: ~8-10 minutes"
+            echo ""
+            echo "Optimizations included:"
+            echo "  - Triton with Blackwell-specific commit"
+            echo "  - xformers v0.0.33 with TORCH_CUDA_ARCH_LIST=12.1"
+            echo "  - Unsloth and dependencies pre-installed"
+            echo ""
+            echo -e "${CYAN}Building unsloth-dgx-spark:latest...${NC}"
+            echo ""
+            docker compose -f docker-compose-finetune.yml build --no-cache
+            echo ""
+            echo -e "${GREEN}============================================${NC}"
+            echo -e "${GREEN}  Build Complete!${NC}"
+            echo -e "${GREEN}============================================${NC}"
+            echo ""
+            echo "Start the container with:"
+            echo "  $0 start finetune"
+            ;;
+        *)
+            echo -e "${RED}Unknown build target: $mode${NC}"
+            echo "Currently supported: finetune"
+            echo ""
+            echo "Usage: $0 build finetune"
+            exit 1
+            ;;
+    esac
 }
 
 case "${1:-}" in
@@ -485,6 +490,9 @@ case "${1:-}" in
         ;;
     pull)
         pull_image
+        ;;
+    build)
+        build_image "${2:-}"
         ;;
     *)
         show_help

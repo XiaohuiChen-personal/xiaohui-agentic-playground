@@ -1,0 +1,72 @@
+# =============================================================================
+# Dockerfile for Unsloth Fine-Tuning on DGX Spark
+# =============================================================================
+# Based on Unsloth's official DGX Spark Dockerfile:
+# https://raw.githubusercontent.com/unslothai/notebooks/main/Dockerfile_DGX_Spark
+#
+# Supports: Full Fine-tuning, LoRA, QLoRA with optimized Triton kernels
+#
+# Build: docker build -f Dockerfile.dgx-spark -t unsloth-dgx-spark .
+# =============================================================================
+
+FROM nvcr.io/nvidia/pytorch:25.11-py3
+
+# Set CUDA environment variables
+ENV CUDA_HOME=/usr/local/cuda-13.0
+ENV CUDA_PATH=$CUDA_HOME
+ENV PATH=$CUDA_HOME/bin:$PATH
+ENV LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+ENV C_INCLUDE_PATH=$CUDA_HOME/include:$C_INCLUDE_PATH
+ENV CPLUS_INCLUDE_PATH=$CUDA_HOME/include:$CPLUS_INCLUDE_PATH
+
+# =============================================================================
+# Install Triton from source for Blackwell support
+# =============================================================================
+RUN git clone https://github.com/triton-lang/triton.git && \
+    cd triton && \
+    git checkout c5d671f91d90f40900027382f98b17a3e04045f6 && \
+    pip install -r python/requirements.txt && \
+    pip install . && \
+    cd ..
+
+# =============================================================================
+# Install xformers v0.0.33 from source for Blackwell support
+# =============================================================================
+# IMPORTANT: Must use v0.0.33 (not main/latest) because v0.0.34+ requires
+# PyTorch stable C++ API which is not available in NVIDIA's container
+RUN git clone -b v0.0.33 --depth=1 https://github.com/facebookresearch/xformers --recursive && \
+    cd xformers && \
+    export TORCH_CUDA_ARCH_LIST="12.1" && \
+    python setup.py install && \
+    cd ..
+
+# =============================================================================
+# Install Unsloth and dependencies
+# =============================================================================
+RUN pip install --no-deps bitsandbytes==0.48.0 transformers==4.56.2 trl==0.22.2
+RUN pip install unsloth unsloth_zoo
+
+# =============================================================================
+# Install additional dependencies for our experiments
+# =============================================================================
+RUN pip install --no-cache-dir \
+    datasets>=3.4.0 \
+    peft>=0.13.0 \
+    scikit-learn \
+    matplotlib \
+    accelerate
+
+# =============================================================================
+# Set runtime environment variables
+# =============================================================================
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+ENV NVIDIA_TF32_OVERRIDE=1
+ENV TOKENIZERS_PARALLELISM=false
+ENV UNSLOTH_RETURN_LOGITS=1
+
+# Working directory
+WORKDIR /fine-tuning
+
+# Default command - start Jupyter Lab
+CMD ["jupyter", "lab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--allow-root", "--NotebookApp.token=", "--NotebookApp.password="]
