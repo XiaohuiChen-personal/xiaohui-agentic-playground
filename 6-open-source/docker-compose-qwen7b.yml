@@ -37,12 +37,12 @@ services:
     ports:
       - "8000:8000"
     command: >
-      vllm serve Qwen/Qwen2.5-7B-Instruct
+      vllm serve /checkpoints/qwen7b-ag-news-full/final
       --host 0.0.0.0
       --port 8000
       --gpu-memory-utilization 0.85
       --max-num-seqs 64
-      --max-model-len 32768
+      --max-model-len 4096
       --dtype auto
       --trust-remote-code
     deploy:

@@ -1,6 +1,6 @@
 # Full Fine-Tuning: Qwen2.5-7B on AG News
 
-This folder contains a complete **full fine-tuning** experiment training Qwen2.5-7B-Instruct on the AG News text classification dataset using NVIDIA's optimized PyTorch Docker container.
+This folder contains a complete **full fine-tuning** experiment that trained Qwen2.5-7B-Instruct on the AG News text classification dataset, achieving **88.33% accuracy** (up from 78.63% baseline).
 
 ## Overview
 
@@ -8,9 +8,11 @@ This folder contains a complete **full fine-tuning** experiment training Qwen2.5
 |--------|---------|
 | **Model** | Qwen/Qwen2.5-7B-Instruct (7.62B parameters) |
 | **Task** | 4-class text classification (World, Sports, Business, Sci/Tech) |
-| **Dataset** | AG News (120K training examples) |
+| **Dataset** | AG News (120K training, 7.6K test) |
 | **Method** | Full fine-tuning (100% of parameters updated) |
+| **Result** | **88.33% accuracy** (+9.70pp improvement) |
 | **Hardware** | NVIDIA DGX Spark (GB10, 128 GB unified memory) |
+| **Training Time** | ~10 hours (with optimizations) |
 | **Container** | `nvcr.io/nvidia/pytorch:25.11-py3` |
 
 ---
@@ -99,17 +101,37 @@ DATALOADER_NUM_WORKERS = 4  # Parallel data loading
 
 ## Training Results
 
-### Performance
+### Fine-Tuned Model Performance
+
+| Metric | Base Model | Fine-Tuned | Improvement |
+|--------|------------|------------|-------------|
+| **Accuracy** | 78.63% | **88.33%** | **+9.70pp** |
+| **F1 (macro)** | 77.80% | **88.38%** | **+10.58pp** |
+| **World F1** | 83.78% | 86.10% | +2.32pp |
+| **Sports F1** | 96.72% | 89.91% | -6.81pp |
+| **Business F1** | 84.35% | 87.48% | +3.13pp |
+| **Sci/Tech F1** | 46.37% | **90.04%** | **+43.67pp** |
+
+### Training Statistics
 
 | Metric | Value |
 |--------|-------|
 | **GPU Utilization** | 95% |
 | **Training Speed** | 0.05 it/s |
 | **Total Steps** | 1,965 |
-| **Training Time** | ~10-11 hours |
-| **Final Loss** | TBD (training in progress) |
+| **Training Time** | ~10 hours |
+| **Final Loss** | ~0.45 |
 
-### Comparison to Baseline
+### Inference Performance
+
+| Metric | Value |
+|--------|-------|
+| **Throughput** | 49.6 articles/second |
+| **Avg Latency** | 1,280 ms/article |
+| **Success Rate** | 100% (0 failures) |
+| **Test Set** | 7,600 articles |
+
+### Training Time Comparison
 
 | Setup | Training Time | Speedup |
 |-------|---------------|---------|
@@ -123,21 +145,26 @@ DATALOADER_NUM_WORKERS = 4  # Parallel data loading
 
 ```
 fine-tuning-dense/
-├── fine_tuning_full.ipynb        # Main training notebook (run in Docker)
-├── base_model_performance.ipynb  # Base model evaluation (78.63% accuracy)
-├── base_model_results.json       # Detailed evaluation metrics
-├── checkpoints/                  # Fine-tuned model weights
-│   └── qwen7b-ag-news-full/      # Training checkpoints
-│       └── final/                # Final model (after training)
-├── adapters/                     # LoRA adapter weights (for future use)
-├── datasets/                     # Prepared training data
-│   └── train.jsonl               # 120K examples in chat format
-├── data_prep/                    # Dataset preparation scripts
-│   ├── convert_dataset.py        # Convert AG News to chat format
-│   ├── config.py                 # Prompts and category definitions
-│   └── README.md                 # Data preparation docs
-├── *.png                         # Visualizations (confusion matrix, etc.)
-└── README.md                     # This file
+├── fine_tuning_full.ipynb           # Main training notebook (run in Docker)
+├── full_finetuning_performance.ipynb # Fine-tuned model evaluation (88.33% accuracy)
+├── base_model_performance.ipynb     # Base model evaluation (78.63% accuracy)
+├── finetuned_model_results.json     # Fine-tuned model metrics
+├── base_model_results.json          # Base model metrics
+├── checkpoints/                     # Fine-tuned model weights
+│   └── qwen7b-ag-news-full/         # Training checkpoints
+│       └── final/                   # Final model (~14 GB)
+├── adapters/                        # LoRA adapter weights (for future use)
+├── datasets/                        # Prepared training data
+│   └── train.jsonl                  # 120K examples in chat format
+├── data_prep/                       # Dataset preparation scripts
+│   ├── convert_dataset.py           # Convert AG News to chat format
+│   ├── config.py                    # Prompts and category definitions
+│   └── README.md                    # Data preparation docs
+├── confusion_matrix.png             # Base model confusion matrix
+├── finetuned_confusion_matrix.png   # Fine-tuned model confusion matrix
+├── ag_news_distribution.png         # Dataset category distribution
+├── ag_news_text_lengths.png         # Dataset text length analysis
+└── README.md                        # This file
 ```
 
 ---
@@ -231,20 +258,18 @@ nvidia-smi
 }
 ```
 
-### Base Model Performance
+### Base Model vs Fine-Tuned Performance
 
-Before fine-tuning, Qwen2.5-7B achieved:
+| Metric | Base Model | Fine-Tuned | Change |
+|--------|------------|------------|--------|
+| Accuracy | 78.63% | **88.33%** | **+9.70pp** |
+| F1 (macro) | 77.80% | **88.38%** | **+10.58pp** |
+| World F1 | 83.78% | 86.10% | +2.32pp |
+| Sports F1 | 96.72% | 89.91% | -6.81pp |
+| Business F1 | 84.35% | 87.48% | +3.13pp |
+| **Sci/Tech F1** | **46.37%** | **90.04%** | **+43.67pp** |
 
-| Metric | Value |
-|--------|-------|
-| Accuracy | 78.63% |
-| F1 (macro) | 77.80% |
-| World F1 | 83.78% |
-| Sports F1 | 96.72% |
-| Business F1 | 84.35% |
-| **Sci/Tech F1** | **46.37%** (weak point) |
-
-**Target after fine-tuning**: 85-92% accuracy, improved Sci/Tech classification.
+**Key Achievement**: Sci/Tech F1 improved from 46.37% to 90.04% (+43.67pp), transforming the weakest category into the strongest!
 
 ---
 
@@ -313,14 +338,25 @@ docker exec pytorch-finetune nvidia-smi
 
 ---
 
-## Next Steps
+## Results Summary
 
-After training completes:
+### What Worked Well
 
-1. **Evaluate the fine-tuned model** on the test set
-2. **Compare accuracy** with base model (78.63%)
-3. **Serve with vLLM** for inference
-4. **Try LoRA/QLoRA** for comparison
+1. **Sci/Tech Classification Fixed**: The biggest weakness (46.37% F1) became the strongest category (90.04% F1)
+2. **Overall Accuracy Improved**: 78.63% → 88.33% (+9.70pp), exceeding the 85-92% target
+3. **Balanced Performance**: All categories now between 86-90% F1 (previously 46-97% range)
+4. **Training Efficiency**: 5-6x speedup with Docker + optimizations
+
+### Trade-offs
+
+- **Sports F1 decreased**: 96.72% → 89.91% (-6.81pp). The base model was over-confident on Sports while failing on Sci/Tech. The fine-tuned model is more balanced.
+
+### Next Steps
+
+1. ✅ **Completed**: Full fine-tuning with 88.33% accuracy
+2. **Deploy**: Serve the fine-tuned model with vLLM for production use
+3. **Compare**: Try LoRA/QLoRA fine-tuning (faster training, smaller model files)
+4. **Iterate**: Consider 2 epochs to potentially recover some Sports performance
 
 ---
 
