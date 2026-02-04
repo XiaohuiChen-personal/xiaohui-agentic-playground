@@ -21,11 +21,8 @@ venv/
 6-open-source/fine-tuning-dense/checkpoints/*
 6-open-source/fine-tuning-dense/adapters/*
 6-open-source/fine-tuning-dense/datasets/*.jsonl
-6-open-source/fine-tuning-peft/checkpoints/*
-6-open-source/fine-tuning-peft/adapters/*
-6-open-source/fine-tuning-peft/datasets/*.jsonl
 !**/.gitkeep
 
 # Unsloth compiled cache (auto-generated)
-6-open-source/fine-tuning-peft/unsloth_compiled_cache/
+6-open-source/fine-tuning-dense/unsloth_compiled_cache/
 

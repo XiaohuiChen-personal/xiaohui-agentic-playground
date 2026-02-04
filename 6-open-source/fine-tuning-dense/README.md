@@ -2,6 +2,33 @@
 
 This folder contains fine-tuning experiments for Qwen2.5-7B-Instruct on the AG News text classification dataset. Three methods are supported: **Full Fine-Tuning**, **LoRA**, and **QLoRA** - all using Unsloth's DGX Spark optimized Docker image.
 
+## Results Summary
+
+### QLoRA Fine-Tuning (Completed)
+
+| Metric | Base Model | QLoRA Fine-Tuned | Improvement |
+|--------|------------|------------------|-------------|
+| **Accuracy** | 78.76% | **95.14%** | **+16.38%** |
+| **F1 (macro)** | 77.97% | **95.13%** | **+17.16%** |
+| **Sci/Tech F1** | 62.06% | **~93.2%** | **+31.14%** |
+| **Business Precision** | 63.66% | **~95.8%** | **+32.14%** |
+
+| Training Aspect | Value |
+|-----------------|-------|
+| **Training Time** | ~6 hours |
+| **Final Loss** | 0.4625 |
+| **Adapter Size** | 177.42 MB |
+| **Trainable Parameters** | 40.4M (0.53% of 7.6B) |
+| **Inference Throughput** | 33.6 articles/second (vLLM) |
+
+### LoRA Fine-Tuning
+*Pending*
+
+### Full Fine-Tuning
+*Pending - will be re-run*
+
+---
+
 ## Quick Comparison: Three Fine-Tuning Methods
 
 | Method | Parameters Updated | Memory | Training Time | Output Size | Best For |
@@ -14,6 +41,8 @@ This folder contains fine-tuning experiments for Qwen2.5-7B-Instruct on the AG N
 
 ## Quick Start
 
+### Training (All Methods)
+
 All three methods use the same Docker container with Unsloth optimizations:
 
 ```bash
@@ -25,9 +54,24 @@ cd ~/Projects/xiaohui-agentic-playground/6-open-source
 # Open http://localhost:8888
 
 # Choose your notebook:
-# - Full Fine-Tuning: fine_tuning_full.ipynb or fine_tuning_full_unsloth.ipynb
+# - Full Fine-Tuning: fine_tuning_full_unsloth.ipynb
 # - LoRA:             fine_tuning_lora.ipynb
 # - QLoRA:            fine_tuning_qlora.ipynb
+```
+
+### Inference with QLoRA Adapter
+
+```bash
+# Start vLLM with QLoRA adapter loaded
+./start_docker.sh start qwen7b-qlora
+
+# Use the API with model="qlora-ag-news"
+curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qlora-ag-news",
+    "messages": [{"role": "user", "content": "Classify: Apple releases new iPhone"}]
+  }'
 ```
 
 ### Common Commands
@@ -48,28 +92,13 @@ cd ~/Projects/xiaohui-agentic-playground/6-open-source
 
 ---
 
-## Results: Full Fine-Tuning (Completed)
-
-| Aspect | Details |
-|--------|---------|
-| **Model** | Qwen/Qwen2.5-7B-Instruct (7.62B parameters) |
-| **Task** | 4-class text classification (World, Sports, Business, Sci/Tech) |
-| **Dataset** | AG News (120K training, 7.6K test) |
-| **Method** | Full fine-tuning (100% of parameters updated) |
-| **Result** | **88.33% accuracy** (+9.70pp improvement) |
-| **Hardware** | NVIDIA DGX Spark (GB10, 128 GB unified memory) |
-| **Training Time** | ~10 hours (with optimizations) |
-| **Container** | `unsloth-dgx-spark:latest` |
-
----
-
 ## When to Use Each Method
 
 ### Full Fine-Tuning
 - **Use when**: Maximum accuracy is critical, you have ~70+ GB GPU memory
 - **Pros**: Best possible quality, all parameters optimized for your task
 - **Cons**: Longest training time, largest output, risk of overfitting
-- **Notebook**: `fine_tuning_full.ipynb` or `fine_tuning_full_unsloth.ipynb`
+- **Notebook**: `fine_tuning_full_unsloth.ipynb`
 
 ### LoRA (Low-Rank Adaptation)
 - **Use when**: Good accuracy with faster training, ~20-25 GB GPU memory
@@ -80,8 +109,9 @@ cd ~/Projects/xiaohui-agentic-playground/6-open-source
 ### QLoRA (Quantized LoRA)
 - **Use when**: Memory is limited (~8-12 GB), or fine-tuning larger models
 - **Pros**: Most memory-efficient, enables fine-tuning models that wouldn't otherwise fit
-- **Cons**: Potential quality loss from 4-bit quantization
+- **Cons**: Potential quality loss from 4-bit quantization (though results show excellent performance)
 - **Notebook**: `fine_tuning_qlora.ipynb`
+- **Results**: **95.14% accuracy** - exceeds all targets!
 
 ---
 
@@ -96,12 +126,14 @@ from unsloth import FastLanguageModel
 model, tokenizer = FastLanguageModel.from_pretrained(
     model_name="unsloth/Qwen2.5-7B-Instruct",
     load_in_4bit=False,  # Full precision base model
+    use_exact_model_name=True,
 )
 
 # QLoRA (4-bit quantized base model)
 model, tokenizer = FastLanguageModel.from_pretrained(
     model_name="unsloth/Qwen2.5-7B-Instruct",
     load_in_4bit=True,   # 4-bit quantized base model
+    use_exact_model_name=True,
 )
 
 # Both use the same LoRA configuration
@@ -109,10 +141,35 @@ model = FastLanguageModel.get_peft_model(
     model,
     r=16,                # LoRA rank
     lora_alpha=32,       # LoRA scaling
-    target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
-    use_gradient_checkpointing="unsloth",  # 30% less VRAM
+    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+    use_gradient_checkpointing=False,  # Disabled for speed on DGX Spark
 )
 ```
+
+---
+
+## QLoRA Results Detail
+
+### Per-Category Performance
+
+| Category | Correct | Total | Accuracy | Notes |
+|----------|---------|-------|----------|-------|
+| **World** | 1,818 | 1,900 | 95.7% | Excellent |
+| **Sports** | 1,894 | 1,900 | **99.7%** | Near-perfect |
+| **Business** | 1,690 | 1,900 | 88.9% | Most challenging |
+| **Sci/Tech** | 1,829 | 1,900 | 96.3% | Massive improvement |
+
+### Key Achievements
+
+1. **All Targets Exceeded**: 95.14% accuracy vs 85% target
+2. **Sci/Tech Transformed**: From 46.8% recall (base) to 96.3% recall
+3. **Sports Near-Perfect**: 99.7% accuracy (1,894/1,900)
+4. **Efficient Training**: Only 0.53% of parameters trained
+
+### Remaining Challenge
+
+- **Business-Sci/Tech Confusion**: 155 Business articles misclassified as Sci/Tech
+- This represents inherent overlap (e.g., "Apple stock rises after iPhone launch" - both Business and Tech)
 
 ---
 
@@ -144,94 +201,6 @@ The first time you run `./start_docker.sh start finetune`, it builds the optimiz
 - **Build time**: ~8-10 minutes (compiling Triton and xformers from source)
 - **Subsequent starts**: <10 seconds (uses cached image)
 
-To explicitly rebuild:
-```bash
-./start_docker.sh build finetune
-```
-
----
-
-## Performance Optimizations
-
-This experiment implements **5 key optimizations** for DGX Spark:
-
-### 1. Unsloth Docker Container (Critical)
-
-Using `unsloth-dgx-spark:latest` instead of pip-installed packages:
-
-| Metric | venv (pip install) | Docker Container |
-|--------|-------------------|------------------|
-| **TFLOPS** | 4.5 (3.6% of peak) | 38.2 (30.6% of peak) |
-| **sm_121 support** | ⚠️ Partial (fallback kernels) | ✅ Native |
-| **Flash Attention 2** | ❌ Not available | ✅ Compiled for Blackwell |
-| **xformers** | ❌ Compilation fails | ✅ v0.0.33 compiled |
-| **Training time** | 50-60+ hours | ~10 hours |
-
-### 2. cuDNN Benchmark Mode
-
-```python
-torch.backends.cudnn.benchmark = True
-```
-
-- **Impact**: 5-10% speedup
-- **Why**: Auto-tunes convolution algorithms for consistent input sizes (512 tokens)
-
-### 3. Sequence Packing
-
-```python
-SFTConfig(packing=True, ...)
-```
-
-- **Impact**: 30-40% speedup (biggest impact!)
-- **Why**: Average sequence is ~120 tokens, padded to 512. Without packing, 75% of compute is wasted on padding.
-
-### 4. Flash Attention 2
-
-```python
-# Built into Unsloth's FastLanguageModel
-model, tokenizer = FastLanguageModel.from_pretrained(...)
-```
-
-- **Impact**: 10-15% speedup
-- **Why**: Memory-efficient attention with optimized CUDA kernels for Blackwell
-
-### 5. Unsloth Gradient Checkpointing
-
-```python
-model = FastLanguageModel.get_peft_model(
-    model,
-    use_gradient_checkpointing="unsloth",  # 30% less VRAM
-)
-```
-
-- **Impact**: 30% less memory, 2x larger batch possible
-- **Why**: Unsloth's optimized checkpointing with minimal recomputation overhead
-
----
-
-## Training Results
-
-### Fine-Tuned Model Performance
-
-| Metric | Base Model | Fine-Tuned | Improvement |
-|--------|------------|------------|-------------|
-| **Accuracy** | 78.63% | **88.33%** | **+9.70pp** |
-| **F1 (macro)** | 77.80% | **88.38%** | **+10.58pp** |
-| **World F1** | 83.78% | 86.10% | +2.32pp |
-| **Sports F1** | 96.72% | 89.91% | -6.81pp |
-| **Business F1** | 84.35% | 87.48% | +3.13pp |
-| **Sci/Tech F1** | 46.37% | **90.04%** | **+43.67pp** |
-
-### Training Statistics
-
-| Metric | Value |
-|--------|-------|
-| **GPU Utilization** | 95% |
-| **Training Speed** | 0.05 it/s |
-| **Total Steps** | 1,965 |
-| **Training Time** | ~10 hours |
-| **Final Loss** | ~0.45 |
-
 ---
 
 ## File Structure
@@ -240,19 +209,19 @@ model = FastLanguageModel.get_peft_model(
 6-open-source/
 ├── fine-tuning-dense/                   # All fine-tuning experiments (this folder)
 │   ├── Dockerfile.dgx-spark             # DGX Spark optimized Dockerfile
-│   ├── fine_tuning_full.ipynb           # Full fine-tuning (original)
 │   ├── fine_tuning_full_unsloth.ipynb   # Full fine-tuning (Unsloth optimized)
 │   ├── fine_tuning_lora.ipynb           # LoRA fine-tuning
 │   ├── fine_tuning_qlora.ipynb          # QLoRA fine-tuning
-│   ├── base_model_performance.ipynb     # Base model evaluation (78.63% accuracy)
-│   ├── full_finetuning_performance.ipynb # Fine-tuned model evaluation
-│   ├── checkpoints/                     # Fine-tuned model weights (~14 GB)
-│   ├── adapters/                        # LoRA adapter output (~200 MB)
+│   ├── base_model_performance.ipynb     # Base model evaluation (78.76% accuracy)
+│   ├── qlora_fine_tuning_performance.ipynb # QLoRA evaluation (95.14% accuracy)
+│   ├── checkpoints/                     # Full fine-tuned model weights
+│   ├── adapters/                        # LoRA/QLoRA adapter output
+│   │   └── qwen7b-ag-news-qlora/        # QLoRA adapter (177 MB)
 │   ├── datasets/                        # Prepared training data (train.jsonl)
-│   ├── data_prep/                       # Dataset preparation scripts
 │   └── README.md                        # This file
 │
 ├── docker-compose-finetune.yml          # Fine-tuning container config
+├── docker-compose-qwen7b.yml            # Inference container (base + LoRA)
 └── start_docker.sh                      # Container management script
 ```
 
@@ -292,7 +261,7 @@ If you encounter OOM errors:
 
 1. **Use QLoRA** instead of LoRA or Full fine-tuning
 2. **Reduce batch size**: `BATCH_SIZE = 4` (and increase `GRADIENT_ACCUMULATION_STEPS = 8`)
-3. **Ensure gradient checkpointing is enabled**: `use_gradient_checkpointing="unsloth"`
+3. **Enable gradient checkpointing**: `use_gradient_checkpointing="unsloth"`
 4. **Stop other processes**: `./start_docker.sh stop` before training
 
 ### Slow Training
@@ -302,6 +271,7 @@ If training is slower than expected:
 1. **Verify Docker container**: Check that you're running inside the Unsloth container
 2. **Check GPU utilization**: `nvidia-smi` should show ~95% utilization
 3. **Ensure Unsloth optimizations**: Use `FastLanguageModel` not `AutoModelForCausalLM`
+4. **Disable gradient checkpointing**: For DGX Spark with ample memory, set `use_gradient_checkpointing=False`
 
 ### Container Issues
 
@@ -319,28 +289,6 @@ If training is slower than expected:
 # Verify GPU access
 docker exec pytorch-finetune nvidia-smi
 ```
-
----
-
-## Results Summary
-
-### What Worked Well
-
-1. **Sci/Tech Classification Fixed**: The biggest weakness (46.37% F1) became the strongest category (90.04% F1)
-2. **Overall Accuracy Improved**: 78.63% → 88.33% (+9.70pp), exceeding the 85-92% target
-3. **Balanced Performance**: All categories now between 86-90% F1 (previously 46-97% range)
-4. **Training Efficiency**: 5-6x speedup with Docker + Unsloth optimizations
-
-### Trade-offs
-
-- **Sports F1 decreased**: 96.72% → 89.91% (-6.81pp). The base model was over-confident on Sports while failing on Sci/Tech. The fine-tuned model is more balanced.
-
-### Next Steps
-
-1. ✅ **Completed**: Full fine-tuning with 88.33% accuracy
-2. **Ready**: Run LoRA/QLoRA on same dataset to compare accuracy vs training time
-3. **Deploy**: Serve the fine-tuned model with vLLM for production use
-4. **Iterate**: Consider 2 epochs to potentially recover some Sports performance
 
 ---
 

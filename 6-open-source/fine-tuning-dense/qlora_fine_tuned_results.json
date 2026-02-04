@@ -1,0 +1,26 @@
+{
+  "model_name": "unsloth/Qwen2.5-7B-Instruct",
+  "adapter_name": "qlora-ag-news",
+  "model_type": "qlora_fine_tuned",
+  "test_set_size": 7600,
+  "successful_predictions": 7600,
+  "failed_predictions": 0,
+  "total_time_seconds": 226.06362676620483,
+  "throughput_per_second": 33.618853721478715,
+  "avg_latency_ms": 1891.9728963228483,
+  "metrics": {
+    "accuracy": 0.9514473684210526,
+    "precision_macro": 0.9523160148184794,
+    "precision_weighted": 0.9523160148184793,
+    "recall_macro": 0.9514473684210526,
+    "recall_weighted": 0.9514473684210526,
+    "f1_macro": 0.951321257681884,
+    "f1_weighted": 0.9513212576818839
+  },
+  "comparison_vs_base": {
+    "accuracy_delta": 0.16384736842105263,
+    "f1_macro_delta": 0.17162125768188408,
+    "accuracy_improvement_pct": 20.80337333939216,
+    "f1_improvement_pct": 22.01119118659537
+  }
+}

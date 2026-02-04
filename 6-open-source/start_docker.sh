@@ -71,10 +71,11 @@ show_help() {
     echo "  $0 build finetune       Build optimized fine-tuning image (first time only)"
     echo ""
     echo "Modes (Inference):"
-    echo "  single   - Run one 70B model (Llama 3.3 70B NVFP4) on port 8000"
-    echo "  dual     - Run two medium models (Mistral 24B + Qwen3 32B) on ports 8000/8001"
-    echo "  gpt-oss  - Run GPT-OSS-20B (MXFP4) optimized for batch inference"
-    echo "  qwen7b   - Run Qwen2.5-7B (dense) for fine-tuning practice"
+    echo "  single      - Run one 70B model (Llama 3.3 70B NVFP4) on port 8000"
+    echo "  dual        - Run two medium models (Mistral 24B + Qwen3 32B) on ports 8000/8001"
+    echo "  gpt-oss     - Run GPT-OSS-20B (MXFP4) optimized for batch inference"
+    echo "  qwen7b       - Run Qwen2.5-7B (base model only)"
+    echo "  qwen7b-qlora - Run Qwen2.5-7B with QLoRA adapter for evaluation"
     echo ""
     echo "Modes (Training):"
     echo "  finetune - All fine-tuning methods (Full/LoRA/QLoRA) with Unsloth (port 8888)"
@@ -109,6 +110,12 @@ set_mode() {
         qwen7b|qwen|7b)
             COMPOSE_FILE="docker-compose-qwen7b.yml"
             MODE="qwen7b"
+            export ENABLE_LORA="false"
+            ;;
+        qwen7b-qlora|qwen-qlora|7b-qlora)
+            COMPOSE_FILE="docker-compose-qwen7b.yml"
+            MODE="qwen7b-qlora"
+            export ENABLE_LORA="true"
             ;;
         finetune|ft|train|peft|lora|qlora|unsloth)
             COMPOSE_FILE="docker-compose-finetune.yml"
@@ -116,7 +123,7 @@ set_mode() {
             ;;
         *)
             echo -e "${RED}Unknown mode: $1${NC}"
-            echo "Use 'single', 'dual', 'gpt-oss', 'qwen7b', or 'finetune'"
+            echo "Use 'single', 'dual', 'gpt-oss', 'qwen7b', 'qwen7b-qlora', or 'finetune'"
             exit 1
             ;;
     esac
@@ -240,7 +247,7 @@ start_servers() {
         echo "  $0 status  - Check if server is ready"
         echo "  $0 logs    - View download/startup progress"
         echo "  $0 stop    - Stop server"
-    elif [ "$MODE" = "qwen7b" ]; then
+    elif [ "$MODE" = "qwen7b" ] || [ "$MODE" = "qwen7b-qlora" ]; then
         echo -e "${GREEN}Server starting!${NC}"
         echo ""
         echo "Model: Qwen2.5-7B-Instruct (Dense 7B, ~14 GB download)"
@@ -249,6 +256,10 @@ start_servers() {
         echo "  - Architecture: Dense Transformer (7B parameters)"
         echo "  - Context Window: 32K tokens (max 128K)"
         echo "  - Batch Size: 64 concurrent sequences"
+        if [ "$MODE" = "qwen7b-qlora" ]; then
+            echo "  - LoRA Support: ENABLED"
+            echo "  - QLoRA Adapter: qlora-ag-news (QLoRA fine-tuned)"
+        fi
         echo "  - Use Case: Fine-tuning practice + inference baseline"
         echo ""
         echo "Endpoint:"

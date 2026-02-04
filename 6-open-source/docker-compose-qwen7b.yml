@@ -9,6 +9,7 @@
 # - Pre/post fine-tuning inference comparison
 # - Learning fine-tuning with full parameter updates
 # - Fast inference baseline
+# - LoRA/QLoRA adapter inference (with --enable-lora)
 #
 # Memory Usage:
 # - Model weights: ~14 GB (BF16)
@@ -18,6 +19,11 @@
 # Performance Expectations:
 # - TPS: 25-40 tokens/second (dense 7B is fast)
 # - TTFT: ~0.1s
+#
+# LoRA Support:
+# - Set ENABLE_LORA=true to enable LoRA adapter support
+# - Adapters are mounted at /adapters inside the container
+# - Use model="adapter-name" in API calls to use adapters
 
 services:
   qwen7b:
@@ -30,19 +36,39 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - HF_HOME=/root/.cache/huggingface
+      - ENABLE_LORA=${ENABLE_LORA:-false}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
+      - ./fine-tuning-dense/adapters:/adapters
     ports:
       - "8000:8000"
     command: >
-      vllm serve unsloth/Qwen2.5-7B-Instruct
-      --host 0.0.0.0
-      --port 8000
-      --gpu-memory-utilization 0.85
-      --max-num-seqs 64
-      --max-model-len 32768
-      --dtype auto
-      --trust-remote-code
+      bash -c '
+      if [ "$$ENABLE_LORA" = "true" ]; then
+        echo "Starting vLLM with LoRA support enabled...";
+        vllm serve unsloth/Qwen2.5-7B-Instruct \
+          --host 0.0.0.0 \
+          --port 8000 \
+          --gpu-memory-utilization 0.85 \
+          --max-num-seqs 64 \
+          --max-model-len 32768 \
+          --dtype auto \
+          --trust-remote-code \
+          --enable-lora \
+          --lora-modules qlora-ag-news=/adapters/qwen7b-ag-news-qlora/final \
+          --max-lora-rank 64;
+      else
+        echo "Starting vLLM (base model only)...";
+        vllm serve unsloth/Qwen2.5-7B-Instruct \
+          --host 0.0.0.0 \
+          --port 8000 \
+          --gpu-memory-utilization 0.85 \
+          --max-num-seqs 64 \
+          --max-model-len 32768 \
+          --dtype auto \
+          --trust-remote-code;
+      fi
+      '
     deploy:
       resources:
         reservations:
