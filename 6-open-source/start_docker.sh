@@ -71,11 +71,13 @@ show_help() {
     echo "  $0 build finetune       Build optimized fine-tuning image (first time only)"
     echo ""
     echo "Modes (Inference):"
-    echo "  single      - Run one 70B model (Llama 3.3 70B NVFP4) on port 8000"
-    echo "  dual        - Run two medium models (Mistral 24B + Qwen3 32B) on ports 8000/8001"
-    echo "  gpt-oss     - Run GPT-OSS-20B (MXFP4) optimized for batch inference"
+    echo "  single       - Run one 70B model (Llama 3.3 70B NVFP4) on port 8000"
+    echo "  dual         - Run two medium models (Mistral 24B + Qwen3 32B) on ports 8000/8001"
+    echo "  gpt-oss      - Run GPT-OSS-20B (MXFP4) optimized for batch inference"
     echo "  qwen7b       - Run Qwen2.5-7B (base model only)"
     echo "  qwen7b-qlora - Run Qwen2.5-7B with QLoRA adapter for evaluation"
+    echo "  qwen7b-lora  - Run Qwen2.5-7B with LoRA adapter for evaluation"
+    echo "  qwen7b-full  - Run Qwen2.5-7B full fine-tuned model (AG News)"
     echo ""
     echo "Modes (Training):"
     echo "  finetune - All fine-tuning methods (Full/LoRA/QLoRA) with Unsloth (port 8888)"
@@ -116,6 +118,17 @@ set_mode() {
             COMPOSE_FILE="docker-compose-qwen7b.yml"
             MODE="qwen7b-qlora"
             export ENABLE_LORA="true"
+            export LORA_ADAPTER="qlora"
+            ;;
+        qwen7b-lora|qwen-lora|7b-lora)
+            COMPOSE_FILE="docker-compose-qwen7b.yml"
+            MODE="qwen7b-lora"
+            export ENABLE_LORA="true"
+            export LORA_ADAPTER="lora"
+            ;;
+        qwen7b-full|qwen-full|7b-full|full-finetuned)
+            COMPOSE_FILE="docker-compose-qwen7b-ag-full-fine-tuned.yml"
+            MODE="qwen7b-full"
             ;;
         finetune|ft|train|peft|lora|qlora|unsloth)
             COMPOSE_FILE="docker-compose-finetune.yml"
@@ -123,7 +136,7 @@ set_mode() {
             ;;
         *)
             echo -e "${RED}Unknown mode: $1${NC}"
-            echo "Use 'single', 'dual', 'gpt-oss', 'qwen7b', 'qwen7b-qlora', or 'finetune'"
+            echo "Use 'single', 'dual', 'gpt-oss', 'qwen7b', 'qwen7b-qlora', 'qwen7b-lora', 'qwen7b-full', or 'finetune'"
             exit 1
             ;;
     esac
@@ -146,6 +159,7 @@ start_servers() {
         docker compose -f docker-compose-dual-medium.yml down 2>/dev/null || true
         docker compose -f docker-compose-gpt-oss.yml down 2>/dev/null || true
         docker compose -f docker-compose-qwen7b.yml down 2>/dev/null || true
+        docker compose -f docker-compose-qwen7b-ag-full-fine-tuned.yml down 2>/dev/null || true
         docker compose -f docker-compose-finetune.yml down 2>/dev/null || true
         echo ""
     fi
@@ -247,7 +261,7 @@ start_servers() {
         echo "  $0 status  - Check if server is ready"
         echo "  $0 logs    - View download/startup progress"
         echo "  $0 stop    - Stop server"
-    elif [ "$MODE" = "qwen7b" ] || [ "$MODE" = "qwen7b-qlora" ]; then
+    elif [ "$MODE" = "qwen7b" ] || [ "$MODE" = "qwen7b-qlora" ] || [ "$MODE" = "qwen7b-lora" ]; then
         echo -e "${GREEN}Server starting!${NC}"
         echo ""
         echo "Model: Qwen2.5-7B-Instruct (Dense 7B, ~14 GB download)"
@@ -258,7 +272,10 @@ start_servers() {
         echo "  - Batch Size: 64 concurrent sequences"
         if [ "$MODE" = "qwen7b-qlora" ]; then
             echo "  - LoRA Support: ENABLED"
-            echo "  - QLoRA Adapter: qlora-ag-news (QLoRA fine-tuned)"
+            echo "  - Adapter: qlora-ag-news (QLoRA fine-tuned, 95.14% accuracy)"
+        elif [ "$MODE" = "qwen7b-lora" ]; then
+            echo "  - LoRA Support: ENABLED"
+            echo "  - Adapter: lora-ag-news (LoRA fine-tuned)"
         fi
         echo "  - Use Case: Fine-tuning practice + inference baseline"
         echo ""
@@ -268,6 +285,25 @@ start_servers() {
         echo "Commands:"
         echo "  $0 status  - Check if server is ready"
         echo "  $0 logs    - View download/startup progress"
+        echo "  $0 stop    - Stop server"
+    elif [ "$MODE" = "qwen7b-full" ]; then
+        echo -e "${GREEN}Server starting!${NC}"
+        echo ""
+        echo "Model: Qwen2.5-7B Full Fine-Tuned (AG News)"
+        echo ""
+        echo "Configuration:"
+        echo "  - Architecture: Dense Transformer (7B parameters, 100% trained)"
+        echo "  - Training: Full Fine-Tuning (8h 36m, loss: 0.4536)"
+        echo "  - Context Window: 32K tokens"
+        echo "  - Batch Size: 64 concurrent sequences"
+        echo "  - Model Size: ~15.25 GB (local)"
+        echo ""
+        echo "Endpoint:"
+        echo "  - Full Fine-Tuned Model: http://localhost:8000"
+        echo ""
+        echo "Commands:"
+        echo "  $0 status  - Check if server is ready"
+        echo "  $0 logs    - View startup progress"
         echo "  $0 stop    - Stop server"
     elif [ "$MODE" = "finetune" ]; then
         echo -e "${GREEN}Fine-tuning container starting!${NC}"
@@ -326,6 +362,7 @@ stop_servers() {
     docker compose -f docker-compose-dual-medium.yml down 2>/dev/null || true
     docker compose -f docker-compose-gpt-oss.yml down 2>/dev/null || true
     docker compose -f docker-compose-qwen7b.yml down 2>/dev/null || true
+    docker compose -f docker-compose-qwen7b-ag-full-fine-tuned.yml down 2>/dev/null || true
     docker compose -f docker-compose-finetune.yml down 2>/dev/null || true
     echo -e "${GREEN}All containers stopped${NC}"
 }
@@ -345,11 +382,14 @@ show_status() {
         echo -e "${YELLOW}No containers running${NC}"
         echo ""
         echo "Start with:"
-        echo "  $0 start single   # Single 70B model"
-        echo "  $0 start dual     # Two medium models"
-        echo "  $0 start gpt-oss  # GPT-OSS-20B for fine-tuning/batch"
-        echo "  $0 start qwen7b   # Qwen2.5-7B for fine-tuning practice"
-        echo "  $0 start finetune # Fine-tuning container (Full/LoRA/QLoRA)"
+        echo "  $0 start single      # Single 70B model"
+        echo "  $0 start dual        # Two medium models"
+        echo "  $0 start gpt-oss     # GPT-OSS-20B for fine-tuning/batch"
+        echo "  $0 start qwen7b      # Qwen2.5-7B base model"
+        echo "  $0 start qwen7b-qlora # Qwen2.5-7B with QLoRA adapter"
+        echo "  $0 start qwen7b-lora  # Qwen2.5-7B with LoRA adapter"
+        echo "  $0 start qwen7b-full  # Qwen2.5-7B full fine-tuned (AG News)"
+        echo "  $0 start finetune    # Fine-tuning container (Full/LoRA/QLoRA)"
         return
     fi
     
@@ -359,7 +399,7 @@ show_status() {
     if curl -s http://localhost:8000/health > /dev/null 2>&1; then
         MODEL=$(curl -s http://localhost:8000/v1/models 2>/dev/null | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4 || echo "unknown")
         echo -e "  Port 8000: ${GREEN}● Ready${NC} ($MODEL)"
-    elif docker ps --format '{{.Names}}' | grep -q "vllm-llama\|vllm-gpt-oss\|vllm-mistral\|vllm-qwen7b"; then
+    elif docker ps --format '{{.Names}}' | grep -q "vllm-llama\|vllm-gpt-oss\|vllm-mistral\|vllm-qwen7b\|vllm-qwen7b-full"; then
         echo -e "  Port 8000: ${YELLOW}● Loading...${NC}"
     else
         echo -e "  Port 8000: ${RED}● Not running${NC}"
@@ -430,6 +470,9 @@ show_logs() {
         elif docker ps --format '{{.Names}}' | grep -q "vllm-gpt-oss"; then
             echo -e "${CYAN}Following logs (Ctrl+C to exit)...${NC}"
             docker compose -f docker-compose-gpt-oss.yml logs -f
+        elif docker ps --format '{{.Names}}' | grep -q "vllm-qwen7b-full"; then
+            echo -e "${CYAN}Following logs (Ctrl+C to exit)...${NC}"
+            docker compose -f docker-compose-qwen7b-ag-full-fine-tuned.yml logs -f
         elif docker ps --format '{{.Names}}' | grep -q "vllm-qwen7b"; then
             echo -e "${CYAN}Following logs (Ctrl+C to exit)...${NC}"
             docker compose -f docker-compose-qwen7b.yml logs -f

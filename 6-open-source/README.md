@@ -176,10 +176,15 @@ All fine-tuning methods use a single optimized Docker container with Unsloth.
 
 # Access Jupyter at http://localhost:8888
 
-# Choose your notebook:
-# - Full Fine-Tuning: fine_tuning_full.ipynb or fine_tuning_full_unsloth.ipynb
-# - LoRA:             fine_tuning_lora.ipynb
-# - QLoRA:            fine_tuning_qlora.ipynb
+# Training notebooks:
+# - LoRA (recommended):  fine_tuning_lora.ipynb
+# - QLoRA:               fine_tuning_qlora.ipynb
+# - Full Fine-Tuning:    fine_tuning_full_unsloth.ipynb
+
+# Evaluation notebooks:
+# - lora_fine_tuning_performance.ipynb
+# - qlora_fine_tuning_performance.ipynb
+# - full_finetuning_performance.ipynb
 ```
 
 ### Why Unsloth Docker?
@@ -196,23 +201,28 @@ The DGX Spark's GB10 (sm_121) requires optimized containers for full performance
 
 ### Fine-Tuning Methods Comparison
 
-| Method | Memory | Time | Output | Best For |
-|--------|--------|------|--------|----------|
-| **Full Fine-Tuning** | ~70 GB | ~10 hours | ~14 GB | Maximum quality |
-| **LoRA** | ~25 GB | ~4-6 hours | ~200 MB | Good balance |
-| **QLoRA** | ~12 GB | ~6-8 hours | ~200 MB | Memory constrained |
+| Method | Training Memory | Time | Output | Best For |
+|--------|-----------------|------|--------|----------|
+| **Full Fine-Tuning** | ~70 GB | ~8.5 hours | ~15 GB | Not recommended* |
+| **LoRA** | ~20-25 GB | ~5.9 hours | ~170 MB | **Best accuracy** |
+| **QLoRA** | ~8-12 GB | ~6.0 hours | ~170 MB | Memory constrained |
 
-### Current Experiment Results
+*Full fine-tuning provides no accuracy advantage over LoRA on this task.
 
-| Aspect | Details |
-|--------|---------|
-| Model | Qwen2.5-7B-Instruct |
-| Task | AG News 4-class classification |
-| Dataset | 120K training examples |
-| Base accuracy | 78.63% |
-| **Fine-tuned accuracy** | **88.33%** (+9.70pp) |
+### Current Experiment Results (All Methods Completed)
 
-**Key Achievement**: Sci/Tech F1 improved from 46.37% to 90.04% (+43.67pp)!
+| Method | Accuracy | F1 (macro) | Improvement | Training Time |
+|--------|----------|------------|-------------|---------------|
+| **Base Model** | 78.76% | 77.97% | - | - |
+| **QLoRA** | 95.14% | 95.13% | +16.38pp | ~6h |
+| **Full Fine-Tuning** | 95.18% | 95.18% | +16.42pp | ~8.5h |
+| **LoRA** | **95.45%** | **95.45%** | **+16.68pp** | ~5.9h |
+
+**Key Achievements**:
+- **Sci/Tech F1**: 62.06% → 93.48% (+31.42pp) - the weakest category massively improved
+- **Business F1**: 73.00% → 92.76% (+19.76pp)
+- **Sports F1**: 93.67% → 99.37% (near-perfect)
+- **Recommendation**: Use **LoRA** for best accuracy with good efficiency
 
 ➡️ **[See detailed fine-tuning documentation](fine-tuning-dense/README.md)**
 
@@ -277,7 +287,8 @@ results = asyncio.run(batch_inference([f"Question {i}" for i in range(50)]))
 ```
 6-open-source/
 ├── docker-compose-gpt-oss.yml     # GPT-OSS-20B MoE (fastest - 15.5 TPS)
-├── docker-compose-qwen7b.yml      # Qwen2.5-7B (fine-tuning inference)
+├── docker-compose-qwen7b.yml      # Qwen2.5-7B with LoRA/QLoRA adapters
+├── docker-compose-qwen7b-ag-full-fine-tuned.yml # Full fine-tuned model
 ├── docker-compose-single.yml      # Single 70B model (Llama 3.3 70B NVFP4)
 ├── docker-compose-dual-medium.yml # Two medium models (Mistral 24B + Qwen3 32B)
 ├── docker-compose-finetune.yml    # Fine-tuning container (Unsloth optimized)
@@ -286,16 +297,26 @@ results = asyncio.run(batch_inference([f"Question {i}" for i in range(50)]))
 ├── finetune_template.py           # Unsloth fine-tuning template
 ├── fine-tuning-dense/             # All fine-tuning experiments
 │   ├── Dockerfile.dgx-spark       # DGX Spark optimized Dockerfile
-│   ├── fine_tuning_full.ipynb     # Full fine-tuning notebook
-│   ├── fine_tuning_full_unsloth.ipynb # Full fine-tuning (Unsloth)
-│   ├── fine_tuning_lora.ipynb     # LoRA notebook
-│   ├── fine_tuning_qlora.ipynb    # QLoRA notebook
-│   ├── base_model_performance.ipynb  # Base model evaluation
-│   ├── checkpoints/               # Fine-tuned model weights
-│   ├── adapters/                  # LoRA adapter weights
+│   ├── README.md                  # Fine-tuning documentation
+│   ├── # Training notebooks
+│   ├── fine_tuning_lora.ipynb     # LoRA (recommended - best accuracy)
+│   ├── fine_tuning_qlora.ipynb    # QLoRA (memory efficient)
+│   ├── fine_tuning_full_unsloth.ipynb # Full fine-tuning
+│   ├── # Evaluation notebooks
+│   ├── base_model_performance.ipynb   # Base model (78.76%)
+│   ├── lora_fine_tuning_performance.ipynb   # LoRA eval (95.45%)
+│   ├── qlora_fine_tuning_performance.ipynb  # QLoRA eval (95.14%)
+│   ├── full_finetuning_performance.ipynb    # Full FT eval (95.18%)
+│   ├── # Results (JSON)
+│   ├── base_model_results.json
+│   ├── lora_finetuned_results.json
+│   ├── qlora_fine_tuned_results.json
+│   ├── full_finetuned_results.json
+│   ├── # Model outputs
+│   ├── checkpoints/               # Full fine-tuned model (~15 GB)
+│   ├── adapters/                  # LoRA/QLoRA adapters (~170 MB each)
 │   ├── datasets/                  # Training datasets (120K examples)
-│   ├── data_prep/                 # Dataset preparation scripts
-│   └── README.md                  # Fine-tuning documentation
+│   └── data_prep/                 # Dataset preparation scripts
 ├── email_battle_open_source/      # CrewAI Email Battle using local models
 ├── single_model_speed_test/       # Speed test benchmarks
 ├── dual_model_speed_test/         # Dual model benchmarks
@@ -338,7 +359,10 @@ results = asyncio.run(batch_inference([f"Question {i}" for i in range(50)]))
 | Action | Command |
 |--------|---------|
 | Start GPT-OSS-20B (fastest) | `./start_docker.sh start gpt-oss` |
-| Start Qwen2.5-7B (fine-tuning inference) | `./start_docker.sh start qwen7b` |
+| Start Qwen2.5-7B base model | `./start_docker.sh start qwen7b` |
+| Start with LoRA adapter (best accuracy) | `./start_docker.sh start qwen7b-lora` |
+| Start with QLoRA adapter | `./start_docker.sh start qwen7b-qlora` |
+| Start full fine-tuned model | `./start_docker.sh start qwen7b-full` |
 | Start fine-tuning container | `./start_docker.sh start finetune` |
 | Build fine-tuning image | `./start_docker.sh build finetune` |
 | Check status | `./start_docker.sh status` |

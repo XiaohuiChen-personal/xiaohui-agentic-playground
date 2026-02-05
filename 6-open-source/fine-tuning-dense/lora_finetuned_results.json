@@ -1,0 +1,26 @@
+{
+  "model": "lora-ag-news (LoRA fine-tuning)",
+  "base_model": "unsloth/Qwen2.5-7B-Instruct",
+  "test_set_size": 7600,
+  "successful_classifications": 7600,
+  "failed_classifications": 0,
+  "total_time_seconds": 183.86361145973206,
+  "throughput_articles_per_second": 41.33498705731925,
+  "avg_latency_ms": 1538.0927789851096,
+  "metrics": {
+    "accuracy": 0.9544736842105264,
+    "precision_macro": 0.9546975992358935,
+    "recall_macro": 0.9544736842105264,
+    "f1_macro": 0.9544762190637538
+  },
+  "per_class_f1": {
+    "World": 0.9618037135278514,
+    "Sports": 0.9936974789915967,
+    "Business": 0.9276210750399149,
+    "Sci/Tech": 0.9347826086956522
+  },
+  "comparison_with_base": {
+    "accuracy_improvement_pp": 16.68421052631579,
+    "f1_macro_improvement_pp": 17.482472760493785
+  }
+}

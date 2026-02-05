@@ -1,0 +1,61 @@
+# Qwen2.5-7B Full Fine-Tuned Model (AG News) for DGX Spark
+# This serves the full fine-tuned model trained on AG News dataset
+#
+# Model: ./checkpoints/qwen7b-ag-news-full-unsloth/final
+# Training: Full Fine-Tuning (100% parameters, ~8.5 hours)
+# Size: ~15.25 GB
+#
+# Use Case:
+# - Evaluate full fine-tuned model on AG News test set
+# - Compare accuracy with LoRA/QLoRA adapters
+# - Benchmark inference speed
+#
+# Performance (Training):
+# - Training Time: 8h 36m
+# - Final Loss: 0.4536
+# - Parameters: 7.6B (100% trained)
+#
+# Memory Usage:
+# - Model weights: ~15 GB (BF16)
+# - KV cache: Scales with context length
+# - Total: ~20-25 GB with 32K context
+
+services:
+  qwen7b-full:
+    image: nvcr.io/nvidia/vllm:25.12-py3
+    container_name: vllm-qwen7b-full
+    ipc: host
+    ulimits:
+      memlock: -1
+      stack: 67108864
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_HOME=/root/.cache/huggingface
+    volumes:
+      - ~/.cache/huggingface:/root/.cache/huggingface
+      - ./fine-tuning-dense/checkpoints/qwen7b-ag-news-full-unsloth/final:/model
+    ports:
+      - "8000:8000"
+    command: >
+      vllm serve /model
+      --host 0.0.0.0
+      --port 8000
+      --gpu-memory-utilization 0.85
+      --max-num-seqs 64
+      --max-model-len 32768
+      --dtype auto
+      --trust-remote-code
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s

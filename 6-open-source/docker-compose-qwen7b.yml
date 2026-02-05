@@ -20,8 +20,12 @@
 # - TPS: 25-40 tokens/second (dense 7B is fast)
 # - TTFT: ~0.1s
 #
-# LoRA Support:
-# - Set ENABLE_LORA=true to enable LoRA adapter support
+# LoRA/Adapter Support:
+# - Set ENABLE_LORA=true to enable adapter support
+# - Set LORA_ADAPTER to specify which adapter(s) to load:
+#   - "qlora" - Load QLoRA adapter only (qlora-ag-news)
+#   - "lora"  - Load LoRA adapter only (lora-ag-news)
+#   - "both"  - Load both adapters
 # - Adapters are mounted at /adapters inside the container
 # - Use model="adapter-name" in API calls to use adapters
 
@@ -37,6 +41,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - HF_HOME=/root/.cache/huggingface
       - ENABLE_LORA=${ENABLE_LORA:-false}
+      - LORA_ADAPTER=${LORA_ADAPTER:-qlora}
     volumes:
       - ~/.cache/huggingface:/root/.cache/huggingface
       - ./fine-tuning-dense/adapters:/adapters
@@ -45,7 +50,21 @@ services:
     command: >
       bash -c '
       if [ "$$ENABLE_LORA" = "true" ]; then
-        echo "Starting vLLM with LoRA support enabled...";
+        # Build lora-modules argument based on LORA_ADAPTER setting
+        LORA_MODULES=""
+        if [ "$$LORA_ADAPTER" = "qlora" ]; then
+          echo "Starting vLLM with QLoRA adapter...";
+          LORA_MODULES="qlora-ag-news=/adapters/qwen7b-ag-news-qlora/final";
+        elif [ "$$LORA_ADAPTER" = "lora" ]; then
+          echo "Starting vLLM with LoRA adapter...";
+          LORA_MODULES="lora-ag-news=/adapters/qwen7b-ag-news-lora/final";
+        elif [ "$$LORA_ADAPTER" = "both" ]; then
+          echo "Starting vLLM with both LoRA and QLoRA adapters...";
+          LORA_MODULES="qlora-ag-news=/adapters/qwen7b-ag-news-qlora/final,lora-ag-news=/adapters/qwen7b-ag-news-lora/final";
+        else
+          echo "Unknown LORA_ADAPTER: $$LORA_ADAPTER, defaulting to QLoRA";
+          LORA_MODULES="qlora-ag-news=/adapters/qwen7b-ag-news-qlora/final";
+        fi
         vllm serve unsloth/Qwen2.5-7B-Instruct \
           --host 0.0.0.0 \
           --port 8000 \
@@ -55,7 +74,7 @@ services:
           --dtype auto \
           --trust-remote-code \
           --enable-lora \
-          --lora-modules qlora-ag-news=/adapters/qwen7b-ag-news-qlora/final \
+          --lora-modules $$LORA_MODULES \
           --max-lora-rank 64;
       else
         echo "Starting vLLM (base model only)...";

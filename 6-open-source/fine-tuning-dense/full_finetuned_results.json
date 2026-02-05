@@ -1,0 +1,55 @@
+{
+  "model": "qwen7b-ag-news-full-unsloth (full fine-tuning)",
+  "base_model": "unsloth/Qwen2.5-7B-Instruct",
+  "test_set_size": 7600,
+  "successful_classifications": 7600,
+  "failed_classifications": 0,
+  "total_time_seconds": 153.3458182811737,
+  "throughput_articles_per_second": 49.5611819427948,
+  "avg_latency_ms": 1278.4514226205954,
+  "metrics": {
+    "accuracy": 0.9518421052631579,
+    "precision_macro": 0.9520161823695723,
+    "precision_weighted": 0.9520161823695722,
+    "recall_macro": 0.9518421052631578,
+    "recall_weighted": 0.9518421052631579,
+    "f1_macro": 0.9518372822950119,
+    "f1_weighted": 0.9518372822950119
+  },
+  "per_class_f1": {
+    "World": 0.9587083112758074,
+    "Sports": 0.9934296977660972,
+    "Business": 0.9233634912187334,
+    "Sci/Tech": 0.9318476289194092
+  },
+  "confusion_matrix": [
+    [
+      1811,
+      6,
+      45,
+      38
+    ],
+    [
+      4,
+      1890,
+      5,
+      1
+    ],
+    [
+      38,
+      5,
+      1735,
+      122
+    ],
+    [
+      25,
+      4,
+      73,
+      1798
+    ]
+  ],
+  "comparison_with_base": {
+    "accuracy_improvement_pp": 16.424210526315797,
+    "f1_macro_improvement_pp": 17.21372822950119
+  }
+}

@@ -141,14 +141,16 @@ xiaohui-agentic-playground/
 │   ├── start_docker.sh          # Docker management script (inference + training)
 │   ├── fine-tuning-dense/       # All fine-tuning experiments
 │   │   ├── Dockerfile.dgx-spark # DGX Spark optimized Dockerfile
-│   │   ├── fine_tuning_full.ipynb # Full fine-tuning notebook
-│   │   ├── fine_tuning_lora.ipynb # LoRA fine-tuning notebook
-│   │   ├── fine_tuning_qlora.ipynb # QLoRA fine-tuning notebook
-│   │   ├── base_model_performance.ipynb # Base model evaluation
+│   │   ├── fine_tuning_lora.ipynb # LoRA training (recommended)
+│   │   ├── fine_tuning_qlora.ipynb # QLoRA training
+│   │   ├── fine_tuning_full_unsloth.ipynb # Full fine-tuning
+│   │   ├── lora_fine_tuning_performance.ipynb # LoRA eval (95.45%)
+│   │   ├── qlora_fine_tuning_performance.ipynb # QLoRA eval (95.14%)
+│   │   ├── full_finetuning_performance.ipynb # Full FT eval (95.18%)
+│   │   ├── base_model_performance.ipynb # Base model (78.76%)
 │   │   ├── datasets/            # Training data (120K examples)
-│   │   ├── checkpoints/         # Fine-tuned model weights
-│   │   ├── adapters/            # LoRA adapter weights
-│   │   └── data_prep/           # Dataset preparation scripts
+│   │   ├── checkpoints/         # Full fine-tuned model (~15 GB)
+│   │   └── adapters/            # LoRA/QLoRA adapters (~170 MB each)
 │   ├── email_battle_open_source/ # Email Battle with local models
 │   │   ├── src/email_battle/    # CrewAI Flow implementation
 │   │   └── README.md            # Detailed documentation
@@ -405,18 +407,21 @@ Run **open-source LLMs locally** on NVIDIA DGX Spark using **vLLM** with Docker,
 | **Single** | Llama 3.3 70B NVFP4 | 3.9 | Maximum quality |
 | **Dual** | Mistral-24B + Qwen3-32B | 9.8 / 8.2 | Multi-agent (CrewAI) |
 
-#### Fine-Tuning
+#### Fine-Tuning (All Methods Completed)
 
-| Method | Container | Time | Use Case |
-|--------|-----------|------|----------|
-| **Full Fine-Tuning** | `unsloth-dgx-spark:latest` | ~10 hours | Maximum quality |
-| **LoRA** | `unsloth-dgx-spark:latest` | ~4-6 hours | Good balance |
-| **QLoRA** | `unsloth-dgx-spark:latest` | ~6-8 hours | Memory efficient |
+| Method | Accuracy | Training Time | Output Size | Recommendation |
+|--------|----------|---------------|-------------|----------------|
+| **LoRA** | **95.45%** | ~5.9 hours | ~170 MB | **Best choice** |
+| **QLoRA** | 95.14% | ~6.0 hours | ~170 MB | Memory constrained |
+| **Full Fine-Tuning** | 95.18% | ~8.5 hours | ~15 GB | Not recommended* |
+
+*Full fine-tuning provides no accuracy advantage over LoRA.
 
 **Key Features:**
 - OpenAI-compatible API (drop-in replacement)
 - GPT-OSS-20B: MoE architecture, 4x faster than dense models
-- Full/LoRA/QLoRA fine-tuning with Unsloth Docker (native sm_121 support)
+- LoRA/QLoRA/Full fine-tuning with Unsloth Docker (native sm_121 support)
+- **95.45% accuracy** on AG News with LoRA (+16.68pp over base model)
 - Jupyter Lab for interactive training
 - NVFP4/MXFP4 quantization for Blackwell GPUs
 - Up to 128K context windows
@@ -426,13 +431,13 @@ Run **open-source LLMs locally** on NVIDIA DGX Spark using **vLLM** with Docker,
 cd 6-open-source
 
 # Inference
-./start_docker.sh start gpt-oss  # Fastest (GPT-OSS-20B)
-./start_docker.sh start qwen7b   # Fine-tuning baseline (Qwen2.5-7B)
+./start_docker.sh start gpt-oss      # Fastest (GPT-OSS-20B)
+./start_docker.sh start qwen7b-lora  # Best fine-tuned (95.45% accuracy)
 
 # Training (stop inference first!)
 ./start_docker.sh stop
 ./start_docker.sh start finetune  # Opens Jupyter at http://localhost:8888
-# Notebooks: fine_tuning_full.ipynb, fine_tuning_lora.ipynb, fine_tuning_qlora.ipynb
+# Recommended: fine_tuning_lora.ipynb (best accuracy)
 
 ./start_docker.sh status         # Check health
 ```
