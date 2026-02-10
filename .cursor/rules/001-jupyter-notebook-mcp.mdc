@@ -1,0 +1,158 @@
+---
+description: Jupyter Notebook MCP Tools Protocol
+globs: **/*.ipynb
+alwaysApply: false
+---
+
+# Jupyter Notebook MCP Tools Protocol
+
+## Important: Use MCP Notebook Tools
+
+For all Jupyter notebook operations (`.ipynb` files), **always use `user-notebook_mcp-*` tools** instead of `Read`, `Write`, or `StrReplace`.
+
+### Available MCP Notebook Tools
+
+| Category | Tools |
+|----------|-------|
+| **Path & Server Context** | `notebook_get_server_path_context` |
+| **Navigation & Discovery** | `notebook_get_outline`, `notebook_search`, `notebook_get_info`, `notebook_get_cell_count` |
+| **File Operations** | `notebook_create`, `notebook_delete`, `notebook_rename`, `notebook_read`, `notebook_export` |
+| **Cell Operations** | `notebook_read_cell`, `notebook_add_cell`, `notebook_edit_cell`, `notebook_delete_cell`, `notebook_bulk_add_cells` |
+| **Cell Transformations** | `notebook_change_cell_type`, `notebook_move_cell`, `notebook_split_cell`, `notebook_merge_cells`, `notebook_duplicate_cell` |
+| **Metadata & Output** | `notebook_read_metadata`, `notebook_edit_metadata`, `notebook_read_cell_metadata`, `notebook_edit_cell_metadata`, `notebook_read_cell_output`, `notebook_edit_cell_output`, `notebook_clear_cell_outputs`, `notebook_clear_all_outputs` |
+| **Validation** | `notebook_validate` |
+
+---
+
+## Path Resolution for Notebooks
+
+**Initial Step:** At the beginning of notebook operations, or if path ambiguity exists, call `notebook_get_server_path_context` with the current `project_directory`.
+
+Use its output (`allowed_roots`, `server_path_style`, `project_directory_status`, `effective_notebook_base_path_for_project`, `path_construction_guidance`) to determine how to construct `notebook_path` arguments for all other notebook tools.
+
+### Example Path Construction
+
+- Project directory: `/home/xiaohui_chen/Projects/xiaohui-agentic-playground`
+- Project is within allowed root: `/home/xiaohui_chen/Projects`
+- `effective_notebook_base_path_for_project`: `xiaohui-agentic-playground`
+- To target a notebook: `xiaohui-agentic-playground/6-open-source/qwe3_coder_next_speed_test/speed_test.ipynb`
+
+### Path Status Handling
+
+| Status | Action |
+|--------|--------|
+| `is_within_allowed_root` | Use `effective_notebook_base_path_for_project` prefix |
+| `is_an_allowed_root` | Use relative paths directly |
+| `outside_allowed_roots` | Inform user and proceed with caution |
+| `resolution_error` | Inform user about path resolution issues |
+
+---
+
+## Markdown Formatting
+
+When creating or editing markdown cells:
+
+- Use **actual newlines** (`\n`) for paragraph breaks, not escaped strings
+- CORRECT: `"## Title\n\nThis is a paragraph."`
+- INCORRECT: `"## Title\\n\\nThis is a paragraph."`
+
+After editing cells, always verify proper formatting with `notebook_read_cell`.
+
+---
+
+## Character Escaping
+
+- **LaTeX:** Use single backslashes (e.g., `\alpha`, not `\\alpha`)
+- **Newlines:** Use actual newlines in the string, not escaped `\\n`
+- **Display math:** Use `$$..$$` not `\\[..\]`
+
+---
+
+## Investigation Before Editing
+
+Before modifying any cell:
+
+1. Use `notebook_get_outline` to understand notebook structure
+2. Use `notebook_search` to find specific content
+3. Read existing cells with `notebook_read_cell` before modifying them
+
+---
+
+## Cell Magics & Rich Output
+
+- Use `!command` for shell commands (not `%%bash`)
+- Matplotlib, Pandas, and HTML in markdown render correctly
+- Avoid `%%writefile` and similar unsupported magics
+
+---
+
+## Cell Size Recommendations
+
+For content that exceeds ~100-150 lines, consider breaking them into separate cells:
+
+### When to Break Down Cells:
+- **Large context prompts** (like those >10K tokens)
+- **Complex function implementations** with multiple logic branches
+- **Multiple test scenarios** that can be isolated
+- **Extensive data definitions** (like multiple large string variables)
+
+### Benefits:
+- **Better error isolation** - Easier to identify which part failed
+- **Faster iteration** - Smaller cells execute faster
+- **Improved readability** - Easier to scan and understand
+- **Easier modifications** - Changes don't risk breaking other content
+- **Cleaner version control** - Smaller diffs for tracking changes
+
+### Example Pattern:
+```
+Cell 1: Define context_1k
+Cell 2: Define context_8k
+Cell 3: Define context_32k
+Cell 4: Main test function using all contexts
+Cell 5: Execute tests
+```
+
+Instead of:
+```
+Cell 1: All context definitions + test function + execution (very long)
+```
+
+---
+
+## Visibility Mode (Less Waiting)
+
+Optimize for visibility and transparency during long edits:
+
+- Create notebooks and make edits with incremental tool calls
+- Verify each change with `notebook_read_cell` or `notebook_validate`
+
+---
+
+## Decision Flowchart
+
+```
+Need to edit a notebook?
+├─ YES → Call notebook_get_server_path_context (first time or if path ambiguous)
+│        ↓
+│        Use output to construct proper notebook_path
+│        ↓
+│        Use notebook_get_outline to understand structure
+│        ↓
+│        Use notebook_read_cell to inspect cells before editing
+│        ↓
+│        Use appropriate MCP tool (add_cell, edit_cell, delete_cell, etc.)
+│        ↓
+│        Verify with notebook_read_cell or notebook_validate
+└─ NO → Proceed with other tasks
+```
+
+---
+
+## Why MCP Tools Instead of Read/Write?
+
+The MCP notebook tools provide:
+- **Safe incremental edits** without race conditions
+- **Proper JSON handling** for notebook structure
+- **Validation** before changes are committed
+- **Consistent path resolution** across environments
+- **No duplication issues** that occur with rapid sequential edits
